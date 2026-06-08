@@ -4,6 +4,8 @@ import { useToast } from "../context/ToastContext";
 import {
   getNotifications,
   markAllRead,
+  getCashierNotifications,
+  cashierMarkAllRead,
 } from "../api/notificationApi";
 import PageHeader from "../components/ui/PageHeader";
 import EmptyState from "../components/ui/EmptyState";
@@ -45,6 +47,12 @@ const getNotificationIcon = (title) => {
       bg: "bg-red-100",
       text: "text-red-600",
     };
+  if (t.includes("receipt") || t.includes("submitted") || t.includes("new"))
+    return {
+      Icon: IconInfo,
+      bg: "bg-sti-gold/10",
+      text: "text-sti-gold",
+    };
   return {
     Icon: IconInfo,
     bg: "bg-blue-100",
@@ -53,9 +61,10 @@ const getNotificationIcon = (title) => {
 };
 
 const Notifications = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { showToast } = useToast();
   const studentId = user?.studentId;
+  const isCashier = role === "cashier";
 
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,11 +72,16 @@ const Notifications = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!studentId) return;
+    if (!isCashier && !studentId) {
+      setLoading(false);
+      return;
+    }
 
     const fetch = async () => {
       try {
-        const data = await getNotifications(studentId);
+        const data = isCashier
+          ? await getCashierNotifications()
+          : await getNotifications(studentId);
         setNotifications(data);
         setError("");
       } catch {
@@ -78,7 +92,7 @@ const Notifications = () => {
     };
 
     fetch();
-  }, [studentId]);
+  }, [studentId, isCashier]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -86,10 +100,14 @@ const Notifications = () => {
   );
 
   const handleMarkAllRead = async () => {
-    if (!studentId) return;
+    if (!isCashier && !studentId) return;
     setMarking(true);
     try {
-      await markAllRead(studentId);
+      if (isCashier) {
+        await cashierMarkAllRead();
+      } else {
+        await markAllRead(studentId);
+      }
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, read: true }))
       );
@@ -104,8 +122,11 @@ const Notifications = () => {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="Your Notifications"
-        subtitle="Stay updated on your payment verification status."
+        title={isCashier ? "Cashier Notifications" : "Your Notifications"}
+        subtitle={isCashier
+          ? "Stay updated on new student receipt submissions."
+          : "Stay updated on your payment verification status."
+        }
         action={
           unreadCount > 0 ? (
             <button

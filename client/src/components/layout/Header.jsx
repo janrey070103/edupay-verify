@@ -7,7 +7,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { getPageTitle } from "../../config/pageTitles";
 import { useAuth } from "../../hooks/useAuth";
-import { getNotifications } from "../../api/notificationApi";
+import { getNotifications, getCashierNotifications } from "../../api/notificationApi";
 import { useToast } from "../../context/ToastContext";
 import {
   IconMenu,
@@ -67,6 +67,8 @@ const Header = ({ onMenuClick }) => {
 
   const studentId = user?.studentId;
   const isStudent = role === "student";
+  const isCashier = role === "cashier";
+  const showBell = isStudent || isCashier;
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -77,9 +79,11 @@ const Header = ({ onMenuClick }) => {
   /* Fetch notifications */
   const fetchNotifications = useCallback(
     async (silent = false) => {
-      if (!isStudent || !studentId) return;
+      if (!showBell) return;
       try {
-        const data = await getNotifications(studentId);
+        const data = isStudent
+          ? await getNotifications(studentId)
+          : await getCashierNotifications();
         const unread = data.filter((n) => !n.read).length;
 
         /* Show toast for new ones if polling (not first load) */
@@ -110,7 +114,7 @@ const Header = ({ onMenuClick }) => {
         /* silent fail for polling */
       }
     },
-    [isStudent, studentId, showToast]
+    [isStudent, showBell, studentId, showToast]
   );
 
   /* Initial load */
@@ -120,12 +124,12 @@ const Header = ({ onMenuClick }) => {
 
   /* Polling every 10s */
   useEffect(() => {
-    if (!isStudent || !studentId) return;
+    if (!showBell) return;
     const interval = setInterval(() => {
       fetchNotifications(false);
     }, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [isStudent, studentId, fetchNotifications]);
+  }, [showBell, fetchNotifications]);
 
   /* Close on outside click */
   useEffect(() => {
@@ -158,24 +162,19 @@ const Header = ({ onMenuClick }) => {
         </h2>
       </div>
 
-      {/* Bell + dropdown (student only) */}
-      <div className="relative" ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => {
-            if (isStudent) {
-              setDropdownOpen((prev) => !prev);
-            } else {
-              navigate("/notifications");
-            }
-          }}
-          className="relative min-h-11 rounded-full p-2.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-          aria-label="Notifications"
-        >
+      {/* Bell + dropdown (student + cashier) */}
+      {showBell && (
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            className="relative min-h-11 rounded-full p-2.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
+            aria-label="Notifications"
+          >
           <IconBell className="h-6 w-6" />
 
           {/* Badge */}
-          {isStudent && unreadCount > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute bottom-0 right-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
@@ -183,7 +182,7 @@ const Header = ({ onMenuClick }) => {
         </button>
 
         {/* Dropdown panel */}
-        {dropdownOpen && isStudent && (
+        {dropdownOpen && (
           <div className="absolute right-0 z-50 mt-2 w-96 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
@@ -262,6 +261,7 @@ const Header = ({ onMenuClick }) => {
           </div>
         )}
       </div>
+      )}
     </header>
   );
 };

@@ -3,7 +3,9 @@ require("express");
 
 const {
     getNotifications,
+    getCashierNotifications,
     markAllRead,
+    cashierMarkAllRead,
 } = require(
     "../controllers/notificationController"
 );
@@ -11,6 +13,18 @@ const {
 const router =
 express.Router();
 
+// Cashier routes (must be before /:studentId to avoid conflicts)
+router.get(
+    "/cashier",
+    getCashierNotifications
+);
+
+router.patch(
+    "/cashier/read",
+    cashierMarkAllRead
+);
+
+// Student routes
 router.get(
     "/:studentId",
     getNotifications

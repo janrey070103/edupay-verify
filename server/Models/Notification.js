@@ -5,7 +5,18 @@ new mongoose.Schema(
 {
     studentId: {
         type: String,
-        required: true,
+        required: false,
+    },
+
+    studentName: {
+        type: String,
+        required: false,
+    },
+
+    recipientRole: {
+        type: String,
+        enum: ["student", "cashier"],
+        default: "student",
     },
 
     title: {

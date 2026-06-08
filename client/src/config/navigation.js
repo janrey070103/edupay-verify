@@ -8,6 +8,7 @@ export const studentNav = [
 export const cashierNav = [
   { label: "Dashboard", path: "/cashier", icon: "home" },
   { label: "Verify Payments", path: "/verify-payments", icon: "check" },
+  { label: "Notifications", path: "/notifications", icon: "bell" },
   { label: "Reports", path: "/reports", icon: "chart" },
 ];
 

@@ -116,6 +116,16 @@ await Payment.create({
   "Pending",
 
 });
+
+    // Notify cashiers about new receipt submission
+    await Notification.create({
+      studentId: studentId,
+      studentName: req.body.studentName,
+      recipientRole: "cashier",
+      title: "New Receipt Submitted",
+      message: `${req.body.studentName} (${studentId}) submitted a receipt for ${req.body.paymentDescription || "payment"}.`,
+    });
+
     res.status(201).json(
       payment
     );

@@ -43,7 +43,7 @@ function App() {
           <Route
             path="/notifications"
             element={
-              <ProtectedRoute allowedRoles={["student"]}>
+              <ProtectedRoute allowedRoles={["student", "cashier"]}>
                 <Notifications />
               </ProtectedRoute>
             }
