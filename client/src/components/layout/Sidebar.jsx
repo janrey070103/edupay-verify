@@ -26,6 +26,7 @@ const roleLabels = {
   cashier: "Cashier",
   admin: "Admin",
   teacher: "Teacher",
+  super_admin: "Super Admin",
 };
 
 const Sidebar = ({ open, onClose }) => {

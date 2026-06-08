@@ -10,6 +10,8 @@ import VerifyPayments from "./pages/VerifyPayments";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import ExamPermit from "./pages/ExamPermit";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import UserManagement from "./pages/UserManagement";
 
 function App() {
   return (
@@ -43,7 +45,7 @@ function App() {
           <Route
             path="/notifications"
             element={
-              <ProtectedRoute allowedRoles={["student", "cashier"]}>
+              <ProtectedRoute allowedRoles={["student", "cashier", "super_admin"]}>
                 <Notifications />
               </ProtectedRoute>
             }
@@ -75,8 +77,24 @@ function App() {
           <Route
             path="/reports"
             element={
-              <ProtectedRoute allowedRoles={["cashier"]}>
+              <ProtectedRoute allowedRoles={["cashier", "super_admin"]}>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/super-admin"
+            element={
+              <ProtectedRoute allowedRoles={["super_admin"]}>
+                <SuperAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute allowedRoles={["super_admin"]}>
+                <UserManagement />
               </ProtectedRoute>
             }
           />

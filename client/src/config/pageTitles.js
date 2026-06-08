@@ -6,6 +6,8 @@ const pageTitles = {
   "/reports": "Reports",
   "/notifications": "Notifications",
   "/permit": "Exam Permit",
+  "/super-admin": "Super Admin Dashboard",
+  "/user-management": "User Management",
 };
 
 export const getPageTitle = (pathname) =>

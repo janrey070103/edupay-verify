@@ -68,7 +68,8 @@ const Header = ({ onMenuClick }) => {
   const studentId = user?.studentId;
   const isStudent = role === "student";
   const isCashier = role === "cashier";
-  const showBell = isStudent || isCashier;
+  const isSuperAdmin = role === "super_admin";
+  const showBell = isStudent || isCashier || isSuperAdmin;
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);

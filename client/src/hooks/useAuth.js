@@ -24,5 +24,8 @@ export const clearAuth = () => {
   localStorage.removeItem("user");
 };
 
-export const getDefaultRoute = (role) =>
-  role === "student" ? "/student" : "/cashier";
+export const getDefaultRoute = (role) => {
+  if (role === "student") return "/student";
+  if (role === "super_admin") return "/super-admin";
+  return "/cashier";
+};

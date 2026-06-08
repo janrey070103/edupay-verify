@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema(
         "cashier",
         "admin",
         "teacher",
+        "super_admin",
       ],
       default: "student",
     },
@@ -41,6 +42,11 @@ const userSchema = new mongoose.Schema(
     semester: String,
 
     schoolYear: String,
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,
