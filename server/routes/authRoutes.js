@@ -15,7 +15,7 @@ router.post("/register", register);
 router.post("/login", login);
 
 router.get("/create-user", async (req, res) => {
-  const User = require("../models/User");
+  const User = require("../Models/User");
 
   const user = await User.create({
     studentId: "2022-0001",

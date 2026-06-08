@@ -10,7 +10,7 @@ async (req, res) => {
         await Notification.find({
             studentId:
             req.params.studentId,
-        });
+        }).sort({ createdAt: -1 });
 
         res.json(
             notifications
@@ -26,6 +26,20 @@ async (req, res) => {
     }
 };
 
+const markAllRead =
+async (req, res) => {
+    try {
+        await Notification.updateMany(
+            { studentId: req.params.studentId, read: false },
+            { read: true }
+        );
+        res.json({ message: "All marked as read" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getNotifications,
+    markAllRead,
 };

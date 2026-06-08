@@ -1,5 +1,5 @@
 const Ledger =
-require("../models/Ledger");
+require("../Models/Ledger");
 
 const verifyPermit =
 async (req, res) => {

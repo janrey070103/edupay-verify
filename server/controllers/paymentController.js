@@ -50,7 +50,7 @@ text.match(
 const studentId =
 studentMatch
 ? studentMatch[1]
-: "";
+: (req.body.studentId || "");
 
 console.log(
   "Student:",
@@ -162,44 +162,11 @@ async (req, res) => {
     payment.status =
       "Approved";
 
-      await Notification.create({
-
-    studentId:
-    payment.studentId,
-
-    title:
-    "Payment Approved",
-
-    message:
-    "Your payment has been approved.",
-
-});
-
-await Notification.create({
-
-    studentId:
-    payment.studentId,
-
-    title:
-    "Payment Rejected",
-
-    message:
-    "Please upload a clearer receipt.",
-
-});
-
-await Notification.create({
-
-    studentId:
-    payment.studentId,
-
-    title:
-    "Need Review",
-
-    message:
-    "Cashier needs to review your receipt.",
-
-});
+    await Notification.create({
+      studentId: payment.studentId,
+      title: "Payment Approved",
+      message: "Your payment has been approved.",
+    });
 
     await payment.save();
 
@@ -220,7 +187,7 @@ await Notification.create({
     }
 
     ledger.paidAmount +=
-      payment.amount;
+      Number(payment.amount) || 0;
 
     ledger.remainingBalance =
       ledger.totalTuition -
@@ -257,8 +224,49 @@ await Notification.create({
   }
 };
 
+const rejectPayment =
+async (req, res) => {
+
+  try {
+
+    const payment =
+      await Payment.findById(
+        req.params.id
+      );
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment not found",
+      });
+    }
+
+    payment.status = "Rejected";
+
+    await Notification.create({
+      studentId: payment.studentId,
+      title: "Payment Rejected",
+      message: "Please upload a clearer receipt.",
+    });
+
+    await payment.save();
+
+    res.json({
+      message: "Rejected",
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: error.message,
+    });
+
+  }
+
+};
+
 module.exports = {
   createPayment,
   getPayments,
   approvePayment,
+  rejectPayment,
 };

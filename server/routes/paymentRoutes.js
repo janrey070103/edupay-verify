@@ -5,6 +5,7 @@ const {
   createPayment,
   getPayments,
   approvePayment,
+  rejectPayment,
 } = require(
   "../controllers/paymentController"
 );
@@ -49,6 +50,16 @@ approvePayment
 
 );
 
+router.put(
+"/reject/:id",
+
+protect,
+
+cashierOnly,
+
+rejectPayment
+
+);
 
 module.exports =
   router;

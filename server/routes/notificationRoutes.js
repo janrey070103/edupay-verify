@@ -3,6 +3,7 @@ require("express");
 
 const {
     getNotifications,
+    markAllRead,
 } = require(
     "../controllers/notificationController"
 );
@@ -13,6 +14,11 @@ express.Router();
 router.get(
     "/:studentId",
     getNotifications
+);
+
+router.patch(
+    "/:studentId/read",
+    markAllRead
 );
 
 module.exports =

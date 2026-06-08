@@ -1,5 +1,5 @@
 const Ledger =
-require("../models/Ledger");
+require("../Models/Ledger");
 
 const getEligibility =
 async (req, res) => {
@@ -9,6 +9,15 @@ async (req, res) => {
       studentId:
       req.params.studentId,
     });
+
+  if (!ledger) {
+    return res.json({
+      prelim: false,
+      midterm: false,
+      preFinal: false,
+      final: false,
+    });
+  }
 
   res.json({
     prelim:
