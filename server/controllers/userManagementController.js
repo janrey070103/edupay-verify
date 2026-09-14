@@ -178,7 +178,17 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, studentId, role, course, yearLevel, semester, schoolYear } = req.body;
+    const {
+      name,
+      email,
+      studentId,
+      role,
+      course,
+      yearLevel,
+      semester,
+      schoolYear,
+      password,
+    } = req.body;
 
     const user = await User.findById(id);
     if (!user) {
@@ -205,6 +215,9 @@ const updateUser = async (req, res) => {
     if (yearLevel !== undefined) user.yearLevel = yearLevel;
     if (semester !== undefined) user.semester = semester;
     if (schoolYear !== undefined) user.schoolYear = schoolYear;
+    if (password && password.trim() !== "") {
+      user.password = await bcrypt.hash(password, 10);
+    }
 
     await user.save();
 
@@ -212,6 +225,32 @@ const updateUser = async (req, res) => {
     delete result.password;
 
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PATCH reset password for a specific user (secure admin action)
+const resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.trim() === "") {
+      return res.status(400).json({ message: "Password is required." });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.json({
+      message: `Password reset successfully for ${user.name}.`,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -285,6 +324,7 @@ module.exports = {
   rejectStudent,
   createUser,
   updateUser,
+  resetUserPassword,
   deactivateUser,
   searchStudents,
 };

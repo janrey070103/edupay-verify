@@ -81,15 +81,8 @@ console.log(
   studentId
 );
 
-const amountMatch =
-text.match(
-/AMOUNT[: ]+([\d,.]+)/i
-);
-
 const amount =
-amountMatch
-? amountMatch[1]
-: "";
+extractText.extractAmount(text);
 
 console.log(
   "Amount:",
