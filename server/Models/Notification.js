@@ -12,6 +12,7 @@ new mongoose.Schema(
         type: String,
         required: false,
     },
+    recipientUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false },
 
     recipientRole: {
         type: String,

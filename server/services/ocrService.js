@@ -1,45 +1,31 @@
-const Tesseract =
-require(
-"tesseract.js"
-);
+const Tesseract = require("tesseract.js");
 
-const extractText =
-async (imageUrl) => {
-
- const result =
- await Tesseract.recognize(
- imageUrl,
- "eng"
- );
-
- return result.data.text;
-
+const extractText = async (imageUrl) => {
+  const result = await Tesseract.recognize(imageUrl, "eng");
+  return result.data.text;
 };
 
-const extractAmount = (text) => {
- const normalizedText = text.replace(/[\r\n]+/g, " ");
- const amountPatterns = [
-  /(?:AMOUNT\s*PAID|PAID\s*AMOUNT|PAYMENT\s*AMOUNT)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-  /(?:TOTAL\s*AMOUNT\s*DUE|AMOUNT\s*DUE|TOTAL\s*PAID|GRAND\s*TOTAL|TOTAL\s*AMOUNT|TOTAL)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-  /(?:AMOUNT|PAYABLE)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
- ];
-
- for (const amountPattern of amountPatterns) {
-  const amountMatch = normalizedText.match(amountPattern);
-
-  if (amountMatch) {
-   const amount = Number(amountMatch[1].replace(/,/g, ""));
-
-   if (Number.isFinite(amount)) {
-	return amount;
-   }
+// Only labelled transaction totals are candidates. Reference numbers and dates
+// must never become a financial amount because they happen to contain digits.
+const extractAmountDetails = (text) => {
+  const lines = String(text || "").split(/\r?\n/);
+  const candidates = [];
+  const label = /\b(?:amount\s*paid|paid\s*amount|payment\s*amount|total\s*paid|grand\s*total|total\s*amount)\b/i;
+  const value = /(?:PHP|P\.?H\.?P\.?|₱)?\s*([\d,]+\.\d{2})\b/i;
+  for (const line of lines) {
+    const match = line.match(label);
+    if (!match) continue;
+    const amountMatch = line.slice(match.index + match[0].length).match(value);
+    if (!amountMatch) continue;
+    const amount = Number(amountMatch[1].replace(/,/g, ""));
+    if (Number.isFinite(amount) && amount > 0) candidates.push(amount);
   }
- }
-
- return "";
+  const distinct = [...new Set(candidates)];
+  return distinct.length === 1
+    ? { amount: distinct[0], status: "Detected" }
+    : { amount: null, status: "Needs Review" };
 };
 
-extractText.extractAmount = extractAmount;
-
-module.exports =
-extractText;
+extractText.extractAmountDetails = extractAmountDetails;
+extractText.extractAmount = (text) => extractAmountDetails(text).amount;
+module.exports = extractText;

@@ -12,8 +12,8 @@ export const uploadPayment = async (formData) => {
   return res.data;
 };
 
-export const approvePayment = async (id) => {
-  const res = await API.put(`/payments/approve/${id}`);
+export const approvePayment = async (id, amount) => {
+  const res = await API.put(`/payments/approve/${id}`, { amount });
   return res.data;
 };
 

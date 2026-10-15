@@ -9,6 +9,7 @@ import {
   updateExam,
 } from "../api/examApi";
 import { getAllUsers } from "../api/userManagementApi";
+import { publishTermSchedule, getTermSchedules } from "../api/termScheduleApi";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/ui/PageHeader";
 import Drawer from "../components/ui/Drawer";
@@ -47,6 +48,22 @@ const ExamSchedule = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [published, setPublished] = useState([]);
+  const [publishForm, setPublishForm] = useState({ examDate: "", semester: "", schoolYear: "", examType: "" });
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
+
+  useEffect(() => { getTermSchedules().then(setPublished).catch(() => {}); }, []);
+  const handlePublish = async (event) => {
+    event.preventDefault(); setPublishMessage(""); setPublishLoading(true);
+    try {
+      await publishTermSchedule(publishForm);
+      setPublished(await getTermSchedules());
+      setPublishMessage("Exam schedule published. Applicable students have been notified.");
+      showToast("Exam schedule published.", "success");
+    } catch (err) { showToast(err.response?.data?.message || "Could not publish schedule.", "error"); }
+    finally { setPublishLoading(false); }
+  };
 
   // Selected date and drawer state
   const [selectedDate, setSelectedDate] = useState(null);
@@ -273,6 +290,37 @@ const ExamSchedule = () => {
 
   return (
     <div>
+      <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-800">Publish examination term</h2>
+        <p className="mt-1 text-sm text-gray-500">This publishes a term date for students. Subject exams and proctor assignments below remain separate.</p>
+        <form onSubmit={handlePublish} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm font-semibold text-gray-700">Exam date
+            <input type="date" required value={publishForm.examDate} onChange={(e) => setPublishForm({ ...publishForm, examDate: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
+          <label className="text-sm font-semibold text-gray-700">Semester
+            <select required value={publishForm.semester} onChange={(e) => setPublishForm({ ...publishForm, semester: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
+              <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+            </select></label>
+          <label className="text-sm font-semibold text-gray-700">School year
+            <input type="text" required pattern="[0-9]{4}-[0-9]{4}" placeholder="2026-2027" value={publishForm.schoolYear}
+              onChange={(e) => setPublishForm({ ...publishForm, schoolYear: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
+          <label className="text-sm font-semibold text-gray-700">Exam term
+            <select required value={publishForm.examType} onChange={(e) => setPublishForm({ ...publishForm, examType: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
+              <option value="">Select term</option>{EXAM_TYPES.map((term) => <option key={term}>{term}</option>)}
+            </select></label>
+          <button type="submit" disabled={publishLoading} className="min-h-11 rounded-lg bg-sti-gold px-5 font-black text-sti-blue disabled:opacity-50 sm:col-span-2 lg:col-span-4 lg:justify-self-start">
+            {publishLoading ? "Publishing…" : "Publish schedule"}</button>
+        </form>
+        {publishMessage && <p role="status" className="mt-3 text-sm font-semibold text-green-700">{publishMessage}</p>}
+        <h3 className="mt-6 text-sm font-bold text-gray-700">Published terms</h3>
+        {published.length === 0 ? <p className="mt-2 text-sm text-gray-500">No terms published yet.</p> :
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">{published.map((item) => <li key={item._id} className="rounded-lg border border-gray-100 p-3 text-sm">
+            <strong>{item.examType}</strong> · {item.semester} · {item.schoolYear} · {formatDate(item.examDate)}
+          </li>)}</ul>}
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-4 lg:gap-8">
         {/* Calendar */}

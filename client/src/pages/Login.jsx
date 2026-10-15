@@ -47,6 +47,8 @@ const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [course, setCourse] = useState("");
   const [yearLevel, setYearLevel] = useState("");
+  const [semester, setSemester] = useState("");
+  const [schoolYear, setSchoolYear] = useState("");
 
   useEffect(() => {
     const savedEmail = localStorage.getItem(REMEMBER_KEY);
@@ -67,6 +69,8 @@ const Login = () => {
     setName("");
     setCourse("");
     setYearLevel("");
+    setSemester("");
+    setSchoolYear("");
     setShowPassword(false);
     setShowConfirmPassword(false);
   };
@@ -117,7 +121,8 @@ const Login = () => {
     e.preventDefault();
     setError("");
 
-    if (!studentId.trim() || !name.trim() || !email.trim() || !password) {
+    if (!studentId.trim() || !name.trim() || !email.trim() || !password ||
+        !course.trim() || !yearLevel || !semester || !/^\d{4}-\d{4}$/.test(schoolYear)) {
       setError("All fields marked with * are required.");
       return;
     }
@@ -147,6 +152,8 @@ const Login = () => {
         password,
         course: course || undefined,
         yearLevel: yearLevel ? Number(yearLevel) : undefined,
+        semester,
+        schoolYear,
       });
 
       // Registration no longer auto-logs in — show pending message
@@ -591,6 +598,18 @@ const Login = () => {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div><label htmlFor="signup-semester" className="mb-1.5 block text-sm font-medium text-gray-700">Semester *</label>
+                    <select id="signup-semester" value={semester} onChange={(e) => setSemester(e.target.value)}
+                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm">
+                      <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+                    </select></div>
+                  <div><label htmlFor="signup-school-year" className="mb-1.5 block text-sm font-medium text-gray-700">School year *</label>
+                    <input id="signup-school-year" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)}
+                      placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}"
+                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm" /></div>
                 </div>
 
                 <button

@@ -25,6 +25,8 @@ const upload =
 require(
 "../middleware/upload"
 );
+const studentOnly = (req, res, next) => req.user.role === "student"
+  ? next() : res.status(403).json({ message: "Only students can submit receipts." });
 
 const router =
   express.Router();
@@ -32,6 +34,7 @@ const router =
 router.post(
 "/",
 protect,
+studentOnly,
 upload.single("receipt"),
 createPayment
 );

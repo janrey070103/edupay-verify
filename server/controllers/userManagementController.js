@@ -1,8 +1,17 @@
 const User = require("../Models/User");
 const Notification = require("../Models/Notification");
 const bcrypt = require("bcryptjs");
+const Payment = require("../Models/Payments");
+const Ledger = require("../Models/Ledger");
+const ExamPermit = require("../Models/ExamPermit");
 
-const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher"];
+const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher", "super_admin"];
+const validEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || ""));
+const validAcademics = ({ course, yearLevel, semester, schoolYear }) =>
+  Boolean(String(course || "").trim() && Number.isInteger(Number(yearLevel)) && Number(yearLevel) >= 1 &&
+    Number(yearLevel) <= 6 && ["1st Semester", "2nd Semester", "Summer"].includes(semester) &&
+    /^\d{4}-\d{4}$/.test(String(schoolYear || "")) &&
+    Number(String(schoolYear).slice(5)) === Number(String(schoolYear).slice(0, 4)) + 1);
 
 // GET all users (excluding passwords)
 const getAllUsers = async (req, res) => {
@@ -118,15 +127,19 @@ const rejectStudent = async (req, res) => {
   }
 };
 
-// POST create new user (cannot create super_admin)
+// POST create a user (only an authenticated super admin can reach this route)
 const createUser = async (req, res) => {
   try {
     const { studentId, name, email, password, role, course, yearLevel, semester, schoolYear } = req.body;
 
     // Validate required fields
-    if (!studentId || !name || !email || !password) {
-      return res.status(400).json({ message: "studentId, name, email, and password are required." });
+    if (!String(name || "").trim() || !validEmail(email) || !password || password.length < 6 || !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ message: "Choose a role and enter a name, valid email, and password of at least 6 characters." });
     }
+    if (role === "student" && (!studentId || !validAcademics(req.body))) {
+      return res.status(400).json({ message: "Student ID and valid academic details are required." });
+    }
+    if (studentId && await User.exists({ studentId })) return res.status(409).json({ message: "ID already exists." });
 
     // Check for duplicate email
     const existing = await User.findOne({ email });
@@ -134,22 +147,22 @@ const createUser = async (req, res) => {
       return res.status(400).json({ message: "Email already exists." });
     }
 
-    // Force-override: cannot create super_admin
-    const safeRole = ALLOWED_ROLES.includes(role) ? role : "student";
+    // Role has already been checked against the supported list.
+    const safeRole = role;
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Users created by super_admin are auto-verified
     const user = await User.create({
-      studentId,
+      studentId: studentId || undefined,
       name,
       email,
       password: hashedPassword,
       role: safeRole,
-      course,
-      yearLevel,
-      semester,
-      schoolYear,
+      course: safeRole === "student" ? course.trim() : undefined,
+      yearLevel: safeRole === "student" ? Number(yearLevel) : undefined,
+      semester: safeRole === "student" ? semester.trim() : undefined,
+      schoolYear: safeRole === "student" ? schoolYear.trim() : undefined,
       isActive: true,
       verificationStatus: "verified",
     });
@@ -163,6 +176,7 @@ const createUser = async (req, res) => {
         studentId: user.studentId,
         studentName: user.name,
         recipientRole: safeRole,
+        recipientUserId: user._id,
         title: "Welcome to EduPay Verify",
         message: `Your ${safeRole} account has been created by the administrator. You can now log in and start using the system.`,
       });
@@ -174,7 +188,7 @@ const createUser = async (req, res) => {
   }
 };
 
-// PATCH update user (cannot assign super_admin role)
+// PATCH update user
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -194,6 +208,20 @@ const updateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
+    if ((email !== undefined && !validEmail(email)) || (password && password.length < 6)) {
+      return res.status(400).json({ message: "Enter a valid email and a password of at least 6 characters." });
+    }
+    if (user.role === "student" && ((studentId !== undefined && studentId !== user.studentId) ||
+        (role !== undefined && role !== "student"))) {
+      const hasRecords = await Promise.all([
+        Payment.exists({ studentId: user.studentId }), Ledger.exists({ studentId: user.studentId }),
+        ExamPermit.exists({ studentId: user.studentId }),
+      ]);
+      if (hasRecords.some(Boolean)) return res.status(409).json({ message: "Student ID or role cannot change while financial or permit records exist." });
+    }
+    if (studentId && studentId !== user.studentId && await User.exists({ studentId, _id: { $ne: id } })) {
+      return res.status(409).json({ message: "ID already exists." });
+    }
 
     // Check duplicate email (if changing)
     if (email && email !== user.email) {
@@ -203,18 +231,24 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // Cannot assign super_admin role
     if (role !== undefined) {
       user.role = ALLOWED_ROLES.includes(role) ? role : user.role;
     }
 
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
-    if (studentId !== undefined) user.studentId = studentId;
-    if (course !== undefined) user.course = course;
-    if (yearLevel !== undefined) user.yearLevel = yearLevel;
-    if (semester !== undefined) user.semester = semester;
-    if (schoolYear !== undefined) user.schoolYear = schoolYear;
+    if (studentId !== undefined) user.studentId = studentId || undefined;
+    if (user.role === "student") {
+      const academic = { course: course ?? user.course, yearLevel: yearLevel ?? user.yearLevel,
+        semester: semester ?? user.semester, schoolYear: schoolYear ?? user.schoolYear };
+      if (!user.studentId || !validAcademics(academic)) return res.status(400).json({ message: "Student ID and valid academic details are required." });
+      if (course !== undefined) user.course = course.trim();
+      if (yearLevel !== undefined) user.yearLevel = Number(yearLevel);
+      if (semester !== undefined) user.semester = semester.trim();
+      if (schoolYear !== undefined) user.schoolYear = schoolYear.trim();
+    } else if (role && role !== "student") {
+      user.course = undefined; user.yearLevel = undefined; user.semester = undefined; user.schoolYear = undefined;
+    }
     if (password && password.trim() !== "") {
       user.password = await bcrypt.hash(password, 10);
     }
@@ -280,6 +314,7 @@ const deactivateUser = async (req, res) => {
         studentId: user.studentId,
         studentName: user.name,
         recipientRole: user.role,
+        recipientUserId: user._id,
         title: "Account Deactivated",
         message: "Your account has been deactivated by the administrator. Please contact support if you believe this is an error.",
       });

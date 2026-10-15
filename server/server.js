@@ -13,6 +13,7 @@ const eligibilityRoutes = require("./routes/eligibilityRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const userManagementRoutes = require("./routes/userManagementRoutes");
 const examRoutes = require("./routes/examRoutes");
+const termScheduleRoutes = require("./routes/termScheduleRoutes");
 
 const app = express();
 
@@ -29,9 +30,16 @@ app.use("/api/qr", qrRoutes);
 app.use("/api/eligibility", eligibilityRoutes);
 app.use("/api/users", userManagementRoutes);
 app.use("/api/exams", examRoutes);
+app.use("/api/term-schedules", termScheduleRoutes);
 
 app.get("/", (req, res) => {
   res.send("EduPay Verify API Running");
+});
+
+app.use((error, _req, res, _next) => {
+  if (error.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "Receipt must be 10 MB or smaller." });
+  if (error.message?.includes("Only JPG")) return res.status(400).json({ message: error.message });
+  return res.status(500).json({ message: "Request could not be processed." });
 });
 
 const startServer = async () => {

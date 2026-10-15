@@ -14,7 +14,8 @@ import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import { IconInbox, IconLoader } from "../components/icons/Icons";
 
-const FILTERS = ["All", "Pending", "Approved", "Rejected"];
+const FILTERS = ["All", "Pending", "Need Review", "Approved", "Rejected"];
+const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 const REJECTION_REASONS = [
   { value: "blurry", label: "Image is blurry" },
   { value: "incomplete", label: "Receipt incomplete" },
@@ -43,6 +44,7 @@ const VerifyPayments = () => {
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [confirmedAmount, setConfirmedAmount] = useState("");
   const [rejectionReason, setRejectionReason] = useState("other");
 
   // Direct payment state
@@ -72,6 +74,8 @@ const VerifyPayments = () => {
 
   useEffect(() => {
     fetchPayments();
+    const interval = setInterval(fetchPayments, 20000);
+    return () => clearInterval(interval);
   }, [fetchPayments]);
 
   // Search students
@@ -97,15 +101,17 @@ const VerifyPayments = () => {
   }, [searchQuery, showToast]);
 
   const filtered = useMemo(() => {
-    if (filter === "All") return payments;
-    return payments.filter((p) => p.status === filter);
+    const list = filter === "All" ? payments : payments.filter((p) => p.status === filter);
+    return [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [payments, filter]);
 
   const handleApprove = async () => {
-    if (!selected) return;
+    if (!selected || !Number.isFinite(Number(confirmedAmount)) || Number(confirmedAmount) <= 0) {
+      showToast("Enter the amount verified from the receipt.", "error"); return;
+    }
     setActionLoading(true);
     try {
-      await approvePayment(selected._id);
+      await approvePayment(selected._id, Number(confirmedAmount));
       showToast("Payment approved successfully.", "success");
       setSelected(null);
       setRemarks("");
@@ -122,10 +128,10 @@ const VerifyPayments = () => {
   };
 
   const handleReject = async () => {
-    if (!selected) return;
+    if (!selected || !remarks.trim()) { showToast("Rejection remarks are required.", "error"); return; }
     setActionLoading(true);
     try {
-      await rejectPayment(selected._id, remarks, rejectionReason);
+      await rejectPayment(selected._id, remarks.trim(), rejectionReason);
       showToast("Payment rejected.", "info");
       setSelected(null);
       setRemarks("");
@@ -142,7 +148,7 @@ const VerifyPayments = () => {
   };
 
   const handleCreateDirectPayment = async () => {
-    if (!selectedStudent || !directPaymentForm.amount) {
+    if (!selectedStudent || !Number.isFinite(Number(directPaymentForm.amount)) || Number(directPaymentForm.amount) <= 0) {
       showToast("Please select a student and enter an amount.", "error");
       return;
     }
@@ -177,7 +183,7 @@ const VerifyPayments = () => {
   };
 
   const drawerFooter =
-    selected?.status === "Pending" ? (
+    ["Pending", "Need Review"].includes(selected?.status) ? (
       <div className="flex flex-col gap-4">
         {remarks && (
           <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
@@ -189,7 +195,7 @@ const VerifyPayments = () => {
           <button
             type="button"
             onClick={handleReject}
-            disabled={actionLoading}
+            disabled={actionLoading || !remarks.trim()}
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 min-h-11"
           >
             Reject
@@ -197,7 +203,7 @@ const VerifyPayments = () => {
           <button
             type="button"
             onClick={handleApprove}
-            disabled={actionLoading}
+            disabled={actionLoading || !Number.isFinite(Number(confirmedAmount)) || Number(confirmedAmount) <= 0}
             className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
           >
             {actionLoading ? <IconLoader className="h-4 w-4" /> : null}
@@ -308,7 +314,7 @@ const VerifyPayments = () => {
                           {payment.invoiceNumber ? `#${payment.invoiceNumber}` : "—"}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">
-                          {payment.amount ? `₱${payment.amount}` : "—"}
+                          {payment.amount != null ? `${peso(payment.amount)}${payment.status === "Approved" ? "" : " (OCR)"}` : "Needs review"}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                           {formatDate(payment.createdAt)}
@@ -322,6 +328,7 @@ const VerifyPayments = () => {
                             onClick={() => {
                               setSelected(payment);
                               setRemarks("");
+                              setConfirmedAmount(payment.amount == null ? "" : String(payment.amount));
                               setRejectionReason("other");
                             }}
                             className="inline-flex min-h-11 items-center gap-1 rounded-md bg-blue-50 px-3 py-2.5 text-xs font-bold text-sti-blue transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
@@ -361,7 +368,7 @@ const VerifyPayments = () => {
                     ["Student", selected.studentName],
                     ["Student ID", selected.studentId],
                     ["Invoice", selected.invoiceNumber ? `#${selected.invoiceNumber}` : null],
-                    ["Amount", selected.amount ? `₱${selected.amount}` : null],
+                    ["Amount", selected.amount != null ? `${peso(selected.amount)}${selected.status === "Approved" ? "" : " (OCR estimate)"}` : "Needs review"],
                     ["Description", selected.paymentDescription],
                     ["Submitted", formatDate(selected.createdAt)],
                     ["Status", null],
@@ -379,8 +386,15 @@ const VerifyPayments = () => {
                   ))}
                 </dl>
 
-                {selected.status === "Pending" && (
+                {["Pending", "Need Review"].includes(selected.status) && (
                   <div className="space-y-4 border-t border-gray-200 pt-4">
+                    <div>
+                      <label htmlFor="verified-amount" className="mb-2 block text-sm font-semibold text-gray-700">Verified amount paid (PHP) *</label>
+                      <input id="verified-amount" type="number" min="0.01" step="0.01" value={confirmedAmount}
+                        onChange={(e) => setConfirmedAmount(e.target.value)}
+                        className="min-h-11 w-full rounded-lg border border-gray-200 px-3" />
+                      <p className="mt-1 text-xs text-gray-500">OCR: {selected.amountStatus || "Needs Review"}. Check the receipt before approving.</p>
+                    </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Rejection Reason
@@ -400,7 +414,7 @@ const VerifyPayments = () => {
 
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Remarks to Student (Optional)
+                        Rejection remarks to student *
                       </label>
                       <textarea
                         value={remarks}
@@ -522,6 +536,8 @@ const VerifyPayments = () => {
                     </span>
                     <input
                       type="number"
+                      min="0.01"
+                      step="0.01"
                       value={directPaymentForm.amount}
                       onChange={(e) =>
                         setDirectPaymentForm({
@@ -594,7 +610,7 @@ const VerifyPayments = () => {
                   <button
                     type="button"
                     onClick={handleCreateDirectPayment}
-                    disabled={directPaymentLoading || !directPaymentForm.amount}
+                    disabled={directPaymentLoading || !Number.isFinite(Number(directPaymentForm.amount)) || Number(directPaymentForm.amount) <= 0}
                     className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
                   >
                     {directPaymentLoading ? <IconLoader className="h-4 w-4" /> : null}

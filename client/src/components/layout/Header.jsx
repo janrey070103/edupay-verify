@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getPageTitle } from "../../config/pageTitles";
 import { useAuth } from "../../hooks/useAuth";
 import { getMyNotifications } from "../../api/notificationApi";
+import { displayNotificationMessage } from "../../utils/notificationMessage";
 import { useToast } from "../../context/ToastContext";
 import {
   IconMenu,
@@ -232,7 +233,7 @@ const Header = ({ onMenuClick }) => {
                         <p
                           className={`text-sm line-clamp-2 ${isUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}
                         >
-                          {item.message || item.title}
+                          {displayNotificationMessage(item.message) || item.title}
                         </p>
                         <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                           {timeAgo(item.createdAt)}

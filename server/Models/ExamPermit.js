@@ -4,6 +4,8 @@ const scanSchema = new mongoose.Schema(
   {
     teacherId: String,
     teacherName: String,
+    examType: String,
+    studentId: String,
     action: {
       type: String,
       enum: ["Scanned", "Approved", "Rejected"],

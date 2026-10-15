@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllUsers } from "../api/userManagementApi";
-import { getPayments } from "../api/paymentApi";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import DashboardCard from "../components/ui/DashboardCard";
@@ -10,26 +9,20 @@ import {
   IconUsers,
   IconCheckCircle,
   IconBarChart,
-  IconShield,
 } from "../components/icons/Icons";
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersData, paymentsData] = await Promise.all([
-          getAllUsers(),
-          getPayments(),
-        ]);
+        const usersData = await getAllUsers();
         setUsers(usersData);
-        setPayments(paymentsData);
       } catch {
         setError("Could not load dashboard data.");
       } finally {
@@ -45,8 +38,6 @@ const SuperAdminDashboard = () => {
     activeStudents: users.filter(
       (u) => u.role === "student" && u.isActive !== false
     ).length,
-    pendingPayments: payments.filter((p) => p.status === "Pending").length,
-    approvedPayments: payments.filter((p) => p.status === "Approved").length,
   };
 
   return (
@@ -58,7 +49,7 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
         <StatCard
           label="Total Users"
           value={stats.totalUsers}
@@ -81,28 +72,6 @@ const SuperAdminDashboard = () => {
           subLabelClassName="bg-green-50 text-green-600"
           loading={loading}
         />
-        <StatCard
-          label="Pending Payments"
-          value={stats.pendingPayments}
-          valueClassName="text-sti-gold"
-          variant="icon"
-          icon={IconBarChart}
-          iconClassName="bg-sti-gold/10 text-sti-gold"
-          subLabel="Awaiting review"
-          subLabelClassName="bg-sti-gold/10 text-sti-blue"
-          loading={loading}
-        />
-        <StatCard
-          label="Approved"
-          value={stats.approvedPayments}
-          valueClassName="text-sti-blue"
-          variant="icon"
-          icon={IconShield}
-          iconClassName="bg-sti-gold/10 text-sti-blue"
-          subLabel="Verified"
-          subLabelClassName="bg-blue-50 text-sti-blue"
-          loading={loading}
-        />
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -114,7 +83,7 @@ const SuperAdminDashboard = () => {
         />
         <DashboardCard
           title="System Reports"
-          description="View payment and verification reports."
+          description="View the registered users report."
           icon={IconBarChart}
           onClick={() => navigate("/reports")}
         />

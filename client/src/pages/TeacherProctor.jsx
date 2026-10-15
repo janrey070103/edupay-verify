@@ -1,290 +1,130 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
-import {
-  decideExamPermit,
-  scanExamPermit,
-} from "../api/eligibilityApi";
-import { useToast } from "../context/ToastContext";
-import PageHeader from "../components/ui/PageHeader";
-import StatusBadge from "../components/ui/StatusBadge";
-import {
-  IconCheckCircle,
-  IconLoader,
-  IconQrCode,
-  IconXCircle,
-} from "../components/icons/Icons";
+import { scanExamPermit } from "../api/eligibilityApi";
+import { singleScanCallback } from "../utils/singleScan";
 
-const extractToken = (value) => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    return parsed.token || trimmed;
-  } catch {
-    return trimmed;
-  }
+const TERMS = ["Prelim", "Midterm", "PreFinal", "Final"];
+const timePH = (value, options) => value ? new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila", ...options,
+}).format(new Date(value)) : "—";
+const extractToken = (raw) => {
+  const value = raw.trim();
+  try { return JSON.parse(value).token || value; } catch { return value; }
 };
 
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return "Never";
-  return new Date(dateStr).toLocaleString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
-const TeacherProctor = () => {
-  const { showToast } = useToast();
+export default function TeacherProctor() {
   const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const scanControlsRef = useRef(null);
-  const scanningRef = useRef(false);
-
+  const controlsRef = useRef(null);
+  const cameraRunRef = useRef(0);
+  const busyRef = useRef(false);
+  const [term, setTerm] = useState("");
   const [manualCode, setManualCode] = useState("");
-  const [cameraMessage, setCameraMessage] = useState("");
-  const [permit, setPermit] = useState(null);
-  const [remarks, setRemarks] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [decisionLoading, setDecisionLoading] = useState(false);
+  const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState("");
 
   const stopCamera = () => {
-    scanningRef.current = false;
-    scanControlsRef.current?.stop();
-    scanControlsRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    cameraRunRef.current += 1;
+    controlsRef.current?.stop();
+    controlsRef.current = null;
   };
+  useEffect(() => () => stopCamera(), []);
 
-  useEffect(() => stopCamera, []);
-
-  const verifyToken = async (rawValue) => {
-    const token = extractToken(rawValue);
-    if (!token || loading) return;
-
+  const verify = async (raw) => {
+    if (busyRef.current) return;
+    if (!term) { setError("Select the examination term before scanning."); return; }
+    const token = extractToken(raw);
+    if (!token) { setError("Scan or paste a QR code first."); return; }
+    stopCamera();
+    busyRef.current = true;
     setLoading(true);
     setError("");
+    setResult(null);
     try {
-      const data = await scanExamPermit(token);
-      setPermit(data);
+      const data = await scanExamPermit(token, term);
+      setResult(data);
       setManualCode("");
-      stopCamera();
-      showToast("Exam permit scanned.", "success");
     } catch (err) {
-      const msg = err.response?.data?.message || "Could not verify QR code.";
-      setError(msg);
-      showToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.message || "Could not verify this QR code.");
+    } finally { busyRef.current = false; setLoading(false); }
   };
 
   const startCamera = async () => {
-    setCameraMessage("");
-    setError("");
-
-    setCameraLoading(true);
+    if (!term) { setError("Select the examination term before scanning."); return; }
+    setCameraMessage(""); setError(""); stopCamera();
+    const cameraRun = cameraRunRef.current;
     try {
-      stopCamera();
-      scanningRef.current = true;
-
-      const codeReader = new BrowserQRCodeReader();
-      const controls = await codeReader.decodeFromVideoDevice(
-        undefined,
-        videoRef.current,
-        async (result) => {
-          if (!result || !scanningRef.current) return;
-
-          scanningRef.current = false;
-          controls.stop();
-          scanControlsRef.current = null;
-          await verifyToken(result.getText());
-        }
-      );
-
-      scanControlsRef.current = controls;
+      const reader = new BrowserQRCodeReader();
+      const controls = await reader.decodeFromVideoDevice(undefined, videoRef.current,
+        singleScanCallback(
+          () => cameraRunRef.current === cameraRun && !busyRef.current,
+          (raw) => { cameraRunRef.current += 1; void verify(raw); }
+        ));
+      if (cameraRunRef.current === cameraRun) controlsRef.current = controls;
+      else controls.stop();
     } catch {
-      setCameraMessage("Could not open the camera. Check browser permissions or paste the QR payload.");
-    } finally {
-      setCameraLoading(false);
+      if (cameraRunRef.current === cameraRun) {
+        setCameraMessage("Could not open the camera. Check browser permission or paste the QR payload.");
+      }
     }
   };
 
-  const handleDecision = async (decision) => {
-    if (!permit) return;
-
-    setDecisionLoading(true);
-    setError("");
-    try {
-      const data = await decideExamPermit(permit._id, decision, remarks);
-      setPermit(data);
-      showToast(`Student ${decision.toLowerCase()} for the exam.`, "success");
-    } catch (err) {
-      const msg = err.response?.data?.message || "Could not save proctor decision.";
-      setError(msg);
-      showToast(msg, "error");
-    } finally {
-      setDecisionLoading(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-4xl">     
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-          <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4">
-            <h2 className="text-lg font-bold text-gray-800">QR Scanner</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Use the camera or paste the QR payload from the student permit.
-            </p>
-          </div>
-
-          <div className="space-y-5 p-6">
-            <div className="overflow-hidden rounded-xl border border-gray-100 bg-gray-950">
-              <video
-                ref={videoRef}
-                muted
-                playsInline
-                className="aspect-video w-full object-cover"
-              />
-            </div>
-
-            {cameraMessage && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                {cameraMessage}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={startCamera}
-                disabled={cameraLoading || loading}
-                className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-blue px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sti-blue-light focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
-              >
-                {cameraLoading ? <IconLoader className="h-4 w-4" /> : <IconQrCode className="h-4 w-4" />}
-                Start Scan
-              </button>
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="min-h-11 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-              >
-                Stop Camera
-              </button>
-            </div>
-
-            <div>
-              <label htmlFor="manualCode" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Manual QR Payload or Token
-              </label>
-              <textarea
-                id="manualCode"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-                rows={4}
-                placeholder='Paste {"permitId":"...","token":"..."} or the token'
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-sti-blue focus:ring-2 focus:ring-sti-blue/20"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => verifyToken(manualCode)}
-              disabled={loading || !manualCode.trim()}
-              className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-5 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
-            >
-              {loading ? <IconLoader className="h-4 w-4" /> : null}
-              Verify Permit
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-          <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4">
-            <h2 className="text-lg font-bold text-gray-800">Scanned Permit</h2>
-          </div>
-
-          {permit ? (
-            <div className="space-y-5 p-6">
-              <dl className="space-y-3 text-sm">
-                {[
-                  ["Student", permit.studentName],
-                  ["Student ID", permit.studentId],
-                  ["Exam", permit.examType],
-                  ["Permit", permit.permitStatus],
-                  ["Proctor Decision", permit.proctorDecision],
-                  ["Last Teacher", permit.proctorTeacherName],
-                  ["Decided At", formatDateTime(permit.proctorDecidedAt)],
-                ].map(([label, value]) => (
-                  <div key={label} className="flex justify-between gap-4 border-b border-gray-50 pb-3">
-                    <dt className="font-medium text-gray-500">{label}</dt>
-                    <dd className="text-right font-semibold text-gray-800">
-                      {label === "Proctor Decision" ? (
-                        <StatusBadge status={value} />
-                      ) : (
-                        value || "-"
-                      )}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-
-              <div>
-                <label htmlFor="remarks" className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Remarks
-                </label>
-                <textarea
-                  id="remarks"
-                  rows={4}
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Optional proctor notes"
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-sti-blue focus:ring-2 focus:ring-sti-blue/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => handleDecision("Rejected")}
-                  disabled={decisionLoading}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60"
-                >
-                  <IconXCircle className="h-4 w-4" />
-                  Reject
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDecision("Approved")}
-                  disabled={decisionLoading}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
-                >
-                  {decisionLoading ? <IconLoader className="h-4 w-4" /> : <IconCheckCircle className="h-4 w-4" />}
-                  Approve
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-6 text-sm text-gray-500">
-              No permit scanned yet.
-            </div>
-          )}
-        </div>
+  return <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
+    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-bold text-gray-800">Scan Exam Permit</h2>
+      <p className="mt-1 text-sm text-gray-500">Select the term you are proctoring. Each camera start scans one permit; start it again for the next student.</p>
+      <label htmlFor="scan-term" className="mt-5 block text-sm font-semibold text-gray-700">Examination term</label>
+      <select id="scan-term" value={term} onChange={(e) => { stopCamera(); setTerm(e.target.value); setResult(null); }}
+        className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3 focus:border-sti-blue focus:outline-none">
+        <option value="">Select a term</option>{TERMS.map((value) => <option key={value}>{value}</option>)}
+      </select>
+      <video ref={videoRef} muted playsInline className="mt-5 aspect-video w-full rounded-lg bg-gray-950 object-cover" />
+      <div className="mt-3 flex gap-2">
+        <button type="button" onClick={startCamera} disabled={loading} className="min-h-11 rounded-lg bg-sti-blue px-4 font-bold text-white disabled:opacity-50">Start camera</button>
+        <button type="button" onClick={stopCamera} className="min-h-11 rounded-lg border border-gray-200 px-4 font-bold text-gray-700">Stop camera</button>
       </div>
-    </div>
-  );
-};
+      {cameraMessage && <p className="mt-3 text-sm text-amber-700">{cameraMessage}</p>}
+      <label htmlFor="scan-code" className="mt-5 block text-sm font-semibold text-gray-700">QR payload or token</label>
+      <textarea id="scan-code" rows={3} value={manualCode} onChange={(e) => setManualCode(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-gray-200 p-3 focus:border-sti-blue focus:outline-none" />
+      <button type="button" onClick={() => verify(manualCode)} disabled={loading || !manualCode.trim()}
+        className="mt-3 min-h-11 rounded-lg bg-sti-gold px-5 font-black text-sti-blue disabled:opacity-50">
+        {loading ? "Verifying…" : "Verify permit"}
+      </button>
+      {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    </section>
 
-export default TeacherProctor;
+    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm" aria-live="polite">
+      <h2 className="text-lg font-bold text-gray-800">Verification result</h2>
+      {!result ? <p className="mt-5 text-sm text-gray-500">Scan a permit to see student and schedule details.</p> : <>
+        <div className="mt-5 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
+          <p className="text-2xl font-black text-green-800">VERIFIED</p>
+          <p className="text-sm font-semibold text-green-700">Eligible for {result.examType} examination</p>
+        </div>
+        <dl className="mt-5 space-y-2 text-sm">
+          {[["Student", result.student?.name], ["Student ID", result.student?.studentId],
+            ["Course", result.student?.course], ["Year level", result.student?.yearLevel],
+            ["Exam term", result.examType], ["Status", result.verificationStatus],
+            ["Date scanned", timePH(result.scannedAt, { dateStyle: "medium" })],
+            ["Time scanned", timePH(result.scannedAt, { timeStyle: "short" })]
+          ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 border-b border-gray-100 py-2">
+            <dt className="text-gray-500">{label}</dt><dd className="text-right font-semibold text-gray-800">{value || "—"}</dd>
+          </div>)}
+        </dl>
+        {result.schedules?.length > 0 && <div className="mt-5">
+          <h3 className="font-bold text-gray-800">Published schedule</h3>
+          {result.schedules.map((schedule) => <p key={schedule._id} className="mt-2 text-sm text-gray-600">
+            {timePH(schedule.examDate, { dateStyle: "full" })} · {schedule.semester} · {schedule.schoolYear}
+          </p>)}
+        </div>}
+        {result.scheduledExams?.length > 0 && <div className="mt-5">
+          <h3 className="font-bold text-gray-800">Subject examinations</h3>
+          <ul className="mt-2 space-y-2 text-sm text-gray-600">{result.scheduledExams.map((exam) => <li key={exam._id}>
+            {exam.subject} ({exam.subjectCode}) · {timePH(exam.examDate, { dateStyle: "medium" })} · {exam.schedule}
+          </li>)}</ul>
+        </div>}
+      </>}
+    </section>
+  </div>;
+}

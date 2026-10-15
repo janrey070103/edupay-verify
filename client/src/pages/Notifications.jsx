@@ -7,6 +7,7 @@ import {
 import PageHeader from "../components/ui/PageHeader";
 import EmptyState from "../components/ui/EmptyState";
 import Skeleton from "../components/ui/Skeleton";
+import { displayNotificationMessage } from "../utils/notificationMessage";
 import {
   IconBell,
   IconCheckCircle2,
@@ -182,7 +183,7 @@ const Notifications = () => {
                           {item.title}
                         </p>
                         <p className="mt-0.5 text-sm text-gray-500">
-                          {item.message}
+                          {displayNotificationMessage(item.message)}
                         </p>
                       </div>
 

@@ -6,10 +6,10 @@ import {
   deactivateUser,
 } from "../api/userManagementApi";
 import { useToast } from "../context/ToastContext";
-import PageHeader from "../components/ui/PageHeader";
 import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
+import { sortUsersByName, formatCreatedPH } from "../utils/userPresentation";
 import {
   IconUsers,
   IconUserPlus,
@@ -19,8 +19,8 @@ import {
   IconLoader,
 } from "../components/icons/Icons";
 
-const ROLES = ["student", "cashier", "admin", "teacher"];
-const FILTERS = ["All", "Student", "Cashier", "Admin", "Teacher"];
+const ROLES = ["student", "cashier", "teacher", "super_admin"];
+const FILTERS = ["All", "Student", "Cashier", "Teacher", "Super_Admin"];
 
 const UserManagement = () => {
   const { showToast } = useToast();
@@ -30,6 +30,7 @@ const UserManagement = () => {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [sortDirection, setSortDirection] = useState("asc");
 
   /* Drawer state */
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -81,8 +82,8 @@ const UserManagement = () => {
           (u.studentId || "").toLowerCase().includes(q)
       );
     }
-    return list;
-  }, [users, filter, search]);
+    return sortUsersByName(list, sortDirection);
+  }, [users, filter, search, sortDirection]);
 
   const resetForm = () =>
     setForm({
@@ -125,17 +126,29 @@ const UserManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email) ||
+        (drawerMode === "create" && form.password.length < 6) ||
+        (form.password && form.password.length < 6)) {
+      setDrawerError("Enter a name, valid email, and a password of at least 6 characters."); return;
+    }
+    if (form.role === "student" && (!form.studentId.trim() || !form.course.trim() ||
+      !Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 6 ||
+      !["1st Semester", "2nd Semester", "Summer"].includes(form.semester) ||
+      !/^\d{4}-\d{4}$/.test(form.schoolYear))) {
+      setDrawerError("Complete the student's ID and valid academic information."); return;
+    }
     setDrawerLoading(true);
     setDrawerError("");
 
     try {
       if (drawerMode === "create") {
-        await createUser(form);
+        await createUser(form.role === "student" ? form : { ...form, course: "", yearLevel: "", semester: "", schoolYear: "" });
         showToast("User created successfully.", "success");
       } else {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
-        await updateUser(editingUser._id, payload);
+        await updateUser(editingUser._id, form.role === "student" ? payload :
+          { ...payload, course: "", yearLevel: "", semester: "", schoolYear: "" });
         showToast("User updated successfully.", "success");
       }
       setDrawerOpen(false);
@@ -171,7 +184,9 @@ const UserManagement = () => {
   };
 
   const updateField = (field, value) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => field === "role" && value !== "student" ?
+      { ...prev, role: value, course: "", yearLevel: "", semester: "", schoolYear: "" } :
+      { ...prev, [field]: value });
 
   const drawerTitle =
     drawerMode === "create" ? "Create New User" : "Edit User";
@@ -209,8 +224,8 @@ const UserManagement = () => {
       )}
 
       {/* Search + filter bar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative flex-1 sm:max-w-xs">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-0 w-full lg:max-w-sm">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
             <IconSearch className="h-4 w-4" />
           </span>
@@ -224,14 +239,20 @@ const UserManagement = () => {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={openCreate}
-          className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-5 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:-translate-y-0.5 hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-        >
-          <IconUserPlus className="h-4 w-4" />
-          Add User
-        </button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 lg:w-auto lg:shrink-0 lg:justify-end">
+          <button type="button" onClick={() => setSortDirection((value) => value === "asc" ? "desc" : "asc")}
+            className="min-h-11 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700">
+            Name {sortDirection === "asc" ? "A–Z" : "Z–A"}
+          </button>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-5 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:-translate-y-0.5 hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
+          >
+            <IconUserPlus className="h-4 w-4" />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -259,7 +280,7 @@ const UserManagement = () => {
           <table className="min-w-full divide-y divide-gray-100">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
-                {["Name", "Email", "Student ID", "Role", "Status", "Actions"].map(
+                {["Name", "Email", "Student ID", "Role", "Date Created", "Status", "Actions"].map(
                   (col) => (
                     <th
                       key={col}
@@ -276,7 +297,7 @@ const UserManagement = () => {
                 <Skeleton variant="table-row" count={5} />
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <EmptyState
                       icon={IconUsers}
                       title="No users found"
@@ -306,6 +327,7 @@ const UserManagement = () => {
                         {user.role}
                       </span>
                     </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{formatCreatedPH(user.createdAt)}</td>
                     <td className="whitespace-nowrap px-6 py-4">
                       {user.isActive === false ? (
                         <span className="inline-flex rounded-md bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-red-500 shadow-sm">
@@ -373,18 +395,27 @@ const UserManagement = () => {
           )}
 
           <div>
+            <label htmlFor="um-role" className="mb-1.5 block text-sm font-medium text-gray-700">Role</label>
+            <select id="um-role" value={form.role} onChange={(e) => updateField("role", e.target.value)}
+              className="min-h-11 w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm">
+              {(drawerMode === "edit" && editingUser?.role === "admin" ? [...ROLES, "admin"] : ROLES)
+                .map((role) => <option key={role} value={role}>{role.replace("_", " ")}</option>)}
+            </select>
+          </div>
+
+          <div>
             <label
               htmlFor="um-studentId"
               className="mb-1.5 block text-sm font-medium text-gray-700"
             >
-              Student / Employee ID
+              {form.role === "student" ? "Student ID" : "Employee ID (optional)"}
             </label>
             <input
               id="um-studentId"
               type="text"
               value={form.studentId}
               onChange={(e) => updateField("studentId", e.target.value)}
-              required
+              required={form.role === "student"}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
@@ -445,27 +476,7 @@ const UserManagement = () => {
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="um-role"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Role
-            </label>
-            <select
-              id="um-role"
-              value={form.role}
-              onChange={(e) => updateField("role", e.target.value)}
-              className="min-h-11 w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-
+          {form.role === "student" && <>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label
@@ -509,14 +520,14 @@ const UserManagement = () => {
               >
                 Semester
               </label>
-              <input
+              <select
                 id="um-semester"
-                type="text"
                 value={form.semester}
                 onChange={(e) => updateField("semester", e.target.value)}
-                placeholder="e.g. 1st Semester"
                 className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
+              >
+                <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+              </select>
             </div>
             <div>
               <label
@@ -528,6 +539,7 @@ const UserManagement = () => {
               <input
                 id="um-schoolYear"
                 type="text"
+                pattern="[0-9]{4}-[0-9]{4}"
                 value={form.schoolYear}
                 onChange={(e) => updateField("schoolYear", e.target.value)}
                 placeholder="e.g. 2025-2026"
@@ -535,6 +547,7 @@ const UserManagement = () => {
               />
             </div>
           </div>
+          </>}
         </form>
       </Drawer>
     </div>

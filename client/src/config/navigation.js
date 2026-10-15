@@ -4,6 +4,7 @@ export const studentNav = [
   { label: "Payment History", path: "/history", icon: "inbox" },
   { label: "Notifications", path: "/notifications", icon: "bell" },
   { label: "Exam Permit", path: "/permit", icon: "ticket" },
+  { label: "My Exams", path: "/student-exams", icon: "calendar" },
 ];
 
 export const cashierNav = [
@@ -22,7 +23,6 @@ export const teacherNav = [
 export const superAdminNav = [
   { label: "Dashboard", path: "/super-admin", icon: "home" },
   { label: "Exam Schedule", path: "/exam-schedule", icon: "calendar" },
-  { label: "Exam Report", path: "/exam-schedule-report", icon: "printer" },
   { label: "User Management", path: "/user-management", icon: "users" },
   { label: "Pending Students", path: "/pending-students", icon: "users" },
   { label: "Notifications", path: "/notifications", icon: "bell" },

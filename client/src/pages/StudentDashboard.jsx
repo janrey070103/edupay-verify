@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPayments } from "../api/paymentApi";
-import { useAuth } from "../hooks/useAuth";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import DashboardCard from "../components/ui/DashboardCard";
@@ -9,6 +8,7 @@ import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
 import Skeleton from "../components/ui/Skeleton";
 import PaymentDetailsModal from "../components/ui/PaymentDetailsModal";
+import StudentLedger from "../components/StudentLedger";
 import {
   IconUpload,
   IconBell,
@@ -27,8 +27,6 @@ const formatDate = (dateStr) => {
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const { user, displayName } = useAuth();
-  const studentId = user?.studentId;
 
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,10 +37,7 @@ const StudentDashboard = () => {
     const fetchPayments = async () => {
       try {
         const data = await getPayments();
-        const mine = studentId
-          ? data.filter((p) => p.studentId === studentId)
-          : data;
-        setPayments(mine);
+        setPayments(data);
       } catch {
         setError("Could not load payment data.");
       } finally {
@@ -51,7 +46,7 @@ const StudentDashboard = () => {
     };
 
     fetchPayments();
-  }, [studentId]);
+  }, []);
 
   const stats = useMemo(() => {
     const pending = payments.filter((p) => p.status === "Pending").length;
@@ -78,6 +73,7 @@ const StudentDashboard = () => {
 
   return (
     <div>
+      <StudentLedger />
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

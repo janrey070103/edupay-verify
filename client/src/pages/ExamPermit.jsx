@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { getCurrentUser } from "../api/authApi";
 import {
   getEligibility,
   generateQR,
@@ -23,7 +23,7 @@ const EXAM_PERIODS = [
 ];
 
 const ExamPermit = () => {
-  const { user } = useAuth();
+  const [user, setUser] = useState(null);
   const studentId = user?.studentId;
 
   const [eligibility, setEligibility] = useState(null);
@@ -34,6 +34,12 @@ const ExamPermit = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedPermitForModal, setSelectedPermitForModal] = useState(null);
+
+  useEffect(() => {
+    getCurrentUser().then(setUser).catch(() => {
+      setError("Could not load your account."); setLoading(false);
+    });
+  }, []);
 
   useEffect(() => {
     if (!studentId) return;
@@ -48,7 +54,7 @@ const ExamPermit = () => {
         setPermits(permitData);
         setError("");
       } catch {
-        /* Ledger may not exist yet — treat as all false */
+        setError("Could not load exam eligibility and permits.");
         setEligibility({
           prelim: false,
           midterm: false,
@@ -72,8 +78,10 @@ const ExamPermit = () => {
       const examType = EXAM_PERIODS.find((e) => e.key === examKey)?.apiValue;
       const data = await generateQR(studentId, examType);
       setQrData(data.qr);
-    } catch {
-      setError("Could not generate QR code.");
+      setPermits((current) => [...current.filter((permit) => permit.examType !== examType), data.permit]);
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not generate QR code.");
     } finally {
       setQrLoading(false);
     }
@@ -161,7 +169,8 @@ const ExamPermit = () => {
           <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
             {EXAM_PERIODS.map(({ key, label, apiValue }) => {
               const permit = permits.find((p) => p.examType === apiValue);
-              const valid = (eligibility?.[key] ?? false) && !!permit;
+              const eligible = eligibility?.[key] ?? false;
+              const valid = eligible && !!permit;
 
               return (
                 <div
@@ -190,13 +199,8 @@ const ExamPermit = () => {
                       <p
                         className={`text-xs font-semibold ${valid ? "text-blue-600" : "text-gray-400"}`}
                       >
-                        {valid ? "Permit Ready" : "Not Eligible"}
+                        {valid ? "Permit Ready" : eligible ? "Eligible — generate permit" : "Not Eligible"}
                       </p>
-                      {permit?.proctorDecision && (
-                        <p className="text-[11px] font-semibold text-gray-400">
-                          Proctor: {permit.proctorDecision}
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -214,7 +218,7 @@ const ExamPermit = () => {
                         : "bg-gray-100 text-gray-400",
                     ].join(" ")}
                   >
-                    {valid ? "Valid" : "Invalid"}
+                    {valid ? "Valid" : eligible ? "Eligible" : "Invalid"}
                   </span>
                 </div>
               );
@@ -238,10 +242,8 @@ const ExamPermit = () => {
         <div className="space-y-6 p-6">
           {/* Exam period selector */}
           <div className="flex flex-wrap gap-3">
-            {EXAM_PERIODS.map(({ key, label, apiValue }) => {
-              const valid =
-                (eligibility?.[key] ?? false) &&
-                permits.some((p) => p.examType === apiValue);
+            {EXAM_PERIODS.map(({ key, label }) => {
+              const valid = eligibility?.[key] ?? false;
               return (
                 <button
                   key={key}
@@ -307,7 +309,7 @@ const ExamPermit = () => {
         </div>
       </div>
 
-      {/* Proctor Authorization Modal */}
+      {/* Permit status and scan history */}
       <Modal
         isOpen={!!selectedPermitForModal}
         onClose={() => setSelectedPermitForModal(null)}
@@ -316,37 +318,11 @@ const ExamPermit = () => {
         {selectedPermitForModal && selectedPermitForModal.permit && (
           <div className="space-y-4">
             <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-              {selectedPermitForModal.permit.proctorDecision === "Approved" ? (
-                <>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 mb-3 shadow-sm">
-                    <IconShield className="h-6 w-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-800 text-lg">Permit Authorized</h4>
-                  <p className="text-sm text-green-600 font-semibold mt-1">
-                    Entry Approved
-                  </p>
-                </>
-              ) : selectedPermitForModal.permit.proctorDecision === "Rejected" ? (
-                <>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-3 shadow-sm">
-                    <IconShieldX className="h-6 w-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-800 text-lg">Entry Denied</h4>
-                  <p className="text-sm text-red-600 font-semibold mt-1">
-                    Please see your proctor
-                  </p>
-                </>
-              ) : (
-                 <>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-3 shadow-sm">
-                    <IconQrCode className="h-6 w-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-800 text-lg">Permit Ready</h4>
-                  <p className="text-sm text-blue-600 font-semibold mt-1">
-                    Pending Teacher Scan
-                  </p>
-                </>
-              )}
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-3 shadow-sm">
+                <IconQrCode className="h-6 w-6" />
+              </div>
+              <h4 className="font-bold text-gray-800 text-lg">Permit Ready</h4>
+              <p className="text-sm text-blue-600 font-semibold mt-1">Present this QR to each exam proctor.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -355,28 +331,18 @@ const ExamPermit = () => {
                  <p className="text-sm font-semibold text-gray-800">{selectedPermitForModal.label}</p>
                </div>
                
-               {selectedPermitForModal.permit.proctorDecision && selectedPermitForModal.permit.proctorDecision !== "Pending" && (
-                 <>
-                   <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-2">
-                     <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Authorized By</label>
-                     <p className="text-sm font-semibold text-gray-800">
-                       {selectedPermitForModal.permit.proctorTeacherName || "Teacher / Proctor"}
-                     </p>
-                   </div>
-                   
-                   <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-2">
-                     <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Scan Time</label>
-                     <p className="text-sm font-semibold text-gray-800">
-                       {selectedPermitForModal.permit.proctorDecidedAt 
-                         ? new Date(selectedPermitForModal.permit.proctorDecidedAt).toLocaleString(undefined, {
-                             dateStyle: "medium",
-                             timeStyle: "short",
-                           })
-                         : "Unknown time"}
-                     </p>
-                   </div>
-                 </>
-               )}
+            </div>
+            <div>
+              <h5 className="text-sm font-bold text-gray-800">Recent scans</h5>
+              {selectedPermitForModal.permit.scans?.length ?
+                <ul className="mt-2 space-y-2 text-sm text-gray-600">
+                  {[...selectedPermitForModal.permit.scans].reverse().slice(0, 5).map((scan, index) =>
+                    <li key={index} className="rounded-lg border border-gray-100 p-2">
+                      {scan.teacherName || "Teacher"} · {new Intl.DateTimeFormat("en-PH", {
+                        timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short",
+                      }).format(new Date(scan.scannedAt))}
+                    </li>)}
+                </ul> : <p className="mt-1 text-sm text-gray-500">No scans yet.</p>}
             </div>
             
             <div className="mt-6">

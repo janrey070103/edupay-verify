@@ -9,6 +9,11 @@ const paymentSchema = new mongoose.Schema(
     invoiceNumber: String,
 
     amount: Number,
+    amountStatus: {
+      type: String,
+      enum: ["Detected", "Needs Review", "Confirmed by Cashier"],
+      default: "Needs Review",
+    },
 
     paymentDescription: String,
 

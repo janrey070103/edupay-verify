@@ -1,8 +1,9 @@
 const jwt =
 require("jsonwebtoken");
+const User = require("../Models/User");
 
 const protect =
-(req,res,next)=>{
+async (req,res,next)=>{
 
  try{
 
@@ -25,8 +26,12 @@ const protect =
     process.env.JWT_SECRET
    );
 
-   req.user =
-   decoded;
+   const account = await User.findById(decoded.id).select("role isActive verificationStatus");
+   if (!account || account.isActive === false || decoded.role !== account.role ||
+       (account.role === "student" && account.verificationStatus !== "verified")) {
+     return res.status(401).json({ message: "Account is not active or verified" });
+   }
+   req.user = { id: account.id, role: account.role };
 
    next();
 

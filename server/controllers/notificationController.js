@@ -9,7 +9,10 @@ const getMyNotifications = async (req, res) => {
         if (role === "student" || role === "teacher") {
             const user = await User.findById(req.user.id);
             if (!user) return res.status(404).json({ message: "User not found" });
-            filter = { studentId: user.studentId, recipientRole: role };
+            filter = role === "teacher"
+              ? { recipientRole: role, $or: [{ recipientUserId: user._id },
+                  ...(user.studentId ? [{ studentId: user.studentId }] : [])] }
+              : { studentId: user.studentId, recipientRole: role };
         } else if (role === "cashier" || role === "super_admin") {
             filter = { recipientRole: role };
         } else {
@@ -31,7 +34,9 @@ const markMyNotificationsRead = async (req, res) => {
         if (role === "student" || role === "teacher") {
             const user = await User.findById(req.user.id);
             if (!user) return res.status(404).json({ message: "User not found" });
-            filter.studentId = user.studentId;
+            if (role === "teacher") filter.$or = [{ recipientUserId: user._id },
+              ...(user.studentId ? [{ studentId: user.studentId }] : [])];
+            else filter.studentId = user.studentId;
             filter.recipientRole = role;
         } else if (role === "cashier" || role === "super_admin") {
             filter.recipientRole = role;

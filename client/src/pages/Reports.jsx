@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import RegisteredUsersReport from "./RegisteredUsersReport";
 import {
   getAllPayments,
   getApprovedPayments,
@@ -304,4 +305,5 @@ const Reports = () => {
   );
 };
 
-export default Reports;
+const RoleReports = () => localStorage.getItem("role") === "super_admin" ? <RegisteredUsersReport /> : <Reports />;
+export default RoleReports;

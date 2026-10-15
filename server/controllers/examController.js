@@ -5,7 +5,7 @@ const Notification = require("../Models/Notification");
 // Create exam
 const createExam = async (req, res) => {
   try {
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, room, capacity, courseYear, courseSection } = req.body;
 
     // Validate required fields
     if (!examDate || !examType || !subject || !subjectCode || !schedule) {
@@ -34,6 +34,8 @@ const createExam = async (req, res) => {
       schedule,
       room: room || null,
       capacity: capacity || null,
+      courseYear: courseYear ? Number(courseYear) : undefined,
+      courseSection: courseSection || undefined,
       createdBy: req.user.id,
     });
 
@@ -105,7 +107,7 @@ const getExamsForTeacher = async (req, res) => {
 const updateExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity, status } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, room, capacity, status, courseYear, courseSection } = req.body;
 
     const exam = await Exam.findById(id);
 
@@ -138,6 +140,8 @@ const updateExam = async (req, res) => {
     if (schedule) exam.schedule = schedule;
     if (room !== undefined) exam.room = room;
     if (capacity !== undefined) exam.capacity = capacity;
+    if (courseYear !== undefined) exam.courseYear = courseYear ? Number(courseYear) : undefined;
+    if (courseSection !== undefined) exam.courseSection = courseSection || undefined;
     if (status) exam.status = status;
 
     await exam.save();
@@ -148,6 +152,7 @@ const updateExam = async (req, res) => {
       if (teacher) {
         await Notification.create({
           studentId: teacher.studentId,
+          recipientUserId: teacher._id,
           studentName: teacher.name,
           recipientRole: "teacher",
           title: "Exam Schedule Updated",
@@ -193,6 +198,7 @@ const assignProctor = async (req, res) => {
     // Create notification for teacher
     await Notification.create({
       studentId: teacher.studentId,
+      recipientUserId: teacher._id,
       studentName: teacher.name,
       recipientRole: "teacher",
       title: "New Exam Assigned",
@@ -233,6 +239,7 @@ const removeProctor = async (req, res) => {
     if (teacher) {
       await Notification.create({
         studentId: teacher.studentId,
+        recipientUserId: teacher._id,
         studentName: teacher.name,
         recipientRole: "teacher",
         title: "Exam Assignment Removed",
@@ -263,6 +270,7 @@ const deleteExam = async (req, res) => {
       if (teacher) {
         await Notification.create({
           studentId: teacher.studentId,
+          recipientUserId: teacher._id,
           studentName: teacher.name,
           recipientRole: "teacher",
           title: "Exam Cancelled",

@@ -1,72 +1,32 @@
 import Modal from "./Modal";
 import StatusBadge from "./StatusBadge";
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-PH", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+const datePH = (value) => value ? new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short",
+}).format(new Date(value)) : "—";
+const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 
-const PaymentDetailsModal = ({ isOpen, onClose, payment }) => {
+export default function PaymentDetailsModal({ isOpen, onClose, payment }) {
   if (!payment) return null;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Payment Details">
-      <div className="space-y-4">
-        <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Status</p>
-          <StatusBadge status={payment.status} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-2">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-              Description / Invoice
-            </label>
-            <p className="text-sm font-semibold text-gray-800">
-              {payment.invoiceNumber ? `Invoice #${payment.invoiceNumber}` : payment.paymentDescription || "Payment"}
-            </p>
-          </div>
-
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Amount</label>
-            <p className="text-sm font-semibold text-gray-800">
-              {payment.amount ? `₱${payment.amount}` : "—"}
-            </p>
-          </div>
-
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Term Coverage</label>
-            <p className="text-sm font-semibold text-gray-800">
-              {payment.examCoverage || "—"}
-            </p>
-          </div>
-
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-2">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Date Submitted</label>
-            <p className="text-sm font-semibold text-gray-800">
-              {formatDate(payment.createdAt)}
-            </p>
-          </div>
-        </div>
-
-        {/* Footer with template-style buttons */}
-        <div className="pt-2 flex justify-end">
-          <button
-            onClick={onClose}
-            className="bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors px-4 py-2"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-export default PaymentDetailsModal;
+  const details = [
+    ["Student full name", payment.studentName], ["Student ID", payment.studentId],
+    ["Payment description", payment.paymentDescription],
+    ["Actual amount paid", payment.status === "Approved" && payment.amount != null && Number.isFinite(Number(payment.amount))
+      ? peso(payment.amount) : "Awaiting cashier verification"],
+    ["Transaction date", datePH(payment.receiptDate || payment.createdAt)],
+    ["Reference number", payment.invoiceNumber || "—"],
+    ["Exam coverage", payment.examCoverage || "—"],
+    ["Cashier verified at", datePH(payment.approvedAt)],
+    ["Cashier ID", payment.approvedBy || "—"],
+  ];
+  return <Modal isOpen={isOpen} onClose={onClose} title="Payment Details">
+    <div className="space-y-4">
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center"><StatusBadge status={payment.status} /></div>
+      <dl className="divide-y divide-gray-100">{details.map(([label, value]) =>
+        <div key={label} className="flex justify-between gap-4 py-2 text-sm"><dt className="text-gray-500">{label}</dt>
+          <dd className="text-right font-semibold text-gray-800">{value || "—"}</dd></div>)}</dl>
+      {payment.status === "Rejected" && payment.remarks && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700"><strong>Rejection remarks:</strong> {payment.remarks}</p>}
+      <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-gray-200 px-4 text-sm font-bold">Close</button>
+    </div>
+  </Modal>;
+}

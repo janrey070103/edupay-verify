@@ -12,7 +12,7 @@ const pageTitles = {
   "/history": "Payment History",
   "/my-exams": "My Exams",
   "/exam-schedule": "Exam Schedule",
-  "/exam-schedule-report": "Exam Report",
+  "/student-exams": "My Exams",
 };
 
 export const getPageTitle = (pathname) =>

@@ -2,10 +2,7 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    studentId: {
-      type: String,
-      required: true,
-    },
+    studentId: { type: String, default: undefined },
 
     name: {
       type: String,
@@ -74,6 +71,8 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+userSchema.index({ studentId: 1 }, { unique: true, name: "uniq_student_account_id",
+  partialFilterExpression: { role: "student", studentId: { $type: "string" } } });
 
 module.exports =
   mongoose.model("User", userSchema);

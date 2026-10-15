@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from "react";
-import { useAuth } from "../hooks/useAuth";
 import { getPayments } from "../api/paymentApi";
 import PageHeader from "../components/ui/PageHeader";
 import StatusBadge from "../components/ui/StatusBadge";
@@ -26,8 +25,6 @@ const EXAM_TERMS = [
 ];
 
 const PaymentHistory = () => {
-  const { user } = useAuth();
-  const studentId = user?.studentId;
 
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,8 +36,7 @@ const PaymentHistory = () => {
     const fetchPayments = async () => {
       try {
         const data = await getPayments();
-        const mine = studentId ? data.filter((p) => p.studentId === studentId) : data;
-        setPayments(mine);
+        setPayments(data);
       } catch {
         setError("Could not load payment data.");
       } finally {
@@ -49,7 +45,7 @@ const PaymentHistory = () => {
     };
 
     fetchPayments();
-  }, [studentId]);
+  }, []);
 
   const filteredPayments = useMemo(() => {
     let filtered = [...payments];
@@ -128,12 +124,12 @@ const PaymentHistory = () => {
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
                     <span>{formatDate(payment.createdAt)}</span>
-                    {payment.amount && (
+                    {payment.status === "Approved" && payment.amount != null && Number.isFinite(Number(payment.amount)) ? (
                       <>
                         <span className="hidden sm:inline text-gray-300">•</span>
-                        <span className="font-medium text-gray-700">₱{payment.amount}</span>
+                        <span className="font-medium text-gray-700">{new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(payment.amount)}</span>
                       </>
-                    )}
+                    ) : payment.amountStatus === "Detected" ? <span>OCR amount awaiting cashier verification</span> : null}
                     {payment.examCoverage && (
                       <>
                         <span className="hidden sm:inline text-gray-300">•</span>
@@ -144,10 +140,13 @@ const PaymentHistory = () => {
                     )}
                   </div>
                 </div>
-                <StatusBadge 
-                  status={payment.status} 
-                  onClick={payment.status === "Approved" ? () => setSelectedPayment(payment) : undefined} 
-                />
+                <div className="flex flex-col items-start gap-2">
+                  <StatusBadge status={payment.status} />
+                  {payment.status === "Rejected" && payment.remarks &&
+                    <p className="max-w-xs text-sm text-red-700"><strong>Remarks:</strong> {payment.remarks}</p>}
+                  <button type="button" onClick={() => setSelectedPayment(payment)}
+                    className="min-h-11 rounded-lg border border-gray-200 px-3 text-sm font-semibold text-sti-blue">View details</button>
+                </div>
               </li>
             ))}
           </ul>

@@ -3,6 +3,9 @@ require("express");
 
 const router =
 express.Router();
+const protect = require("../middleware/protect");
+const superAdminOnly = require("../middleware/superAdminOnly");
+router.use(protect, superAdminOnly);
 
 const {
 

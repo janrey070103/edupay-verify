@@ -17,9 +17,13 @@ const register = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!studentId || !name || !email || !password) {
+    if (!studentId || !name || !email || !password || !course ||
+        !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 6 ||
+        !["1st Semester", "2nd Semester", "Summer"].includes(semester) ||
+        !/^\d{4}-\d{4}$/.test(String(schoolYear || "")) ||
+        Number(String(schoolYear).slice(5)) !== Number(String(schoolYear).slice(0, 4)) + 1) {
       return res.status(400).json({
-        message: "Student ID, name, email, and password are required.",
+        message: "Complete the required account and academic information.",
       });
     }
 
@@ -46,7 +50,7 @@ const register = async (req, res) => {
       password: hashedPassword,
       role: "student",
       course,
-      yearLevel,
+      yearLevel: Number(yearLevel),
       semester,
       schoolYear,
       verificationStatus: "pending",

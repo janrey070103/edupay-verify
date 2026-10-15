@@ -15,15 +15,8 @@ export const getStudentPermits = async (studentId) => {
   return res.data;
 };
 
-export const scanExamPermit = async (token) => {
-  const res = await API.post("/qr/scan", { token });
+export const scanExamPermit = async (token, examType) => {
+  const res = await API.post("/qr/scan", { token, examType });
   return res.data;
 };
-
-export const decideExamPermit = async (permitId, decision, remarks) => {
-  const res = await API.put(`/qr/${permitId}/proctor-decision`, {
-    decision,
-    remarks,
-  });
-  return res.data;
-};
+export const getMyLedger = async () => (await API.get("/eligibility/me/ledger")).data;

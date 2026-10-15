@@ -17,7 +17,7 @@ import PendingStudents from "./pages/PendingStudents";
 import TeacherProctor from "./pages/TeacherProctor";
 import ExamSchedule from "./pages/ExamSchedule";
 import AssignedExams from "./pages/AssignedExams";
-import ExamScheduleReport from "./pages/ExamScheduleReport";
+import StudentMyExams from "./pages/StudentMyExams";
 
 function App() {
   return (
@@ -72,6 +72,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/student-exams" element={<ProtectedRoute allowedRoles={["student"]}><StudentMyExams /></ProtectedRoute>} />
           <Route
             path="/cashier"
             element={
@@ -141,14 +142,6 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["super_admin"]}>
                 <ExamSchedule />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/exam-schedule-report"
-            element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
-                <ExamScheduleReport />
               </ProtectedRoute>
             }
           />
