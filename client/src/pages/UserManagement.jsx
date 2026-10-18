@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getAllUsers,
   createUser,
@@ -10,6 +10,7 @@ import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
 import { sortUsersByName, formatCreatedPH } from "../utils/userPresentation";
+import { focusField } from "../utils/formNavigation";
 import {
   IconUsers,
   IconUserPlus,
@@ -38,6 +39,7 @@ const UserManagement = () => {
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerError, setDrawerError] = useState("");
   const [editingUser, setEditingUser] = useState(null);
+  const formRef = useRef(null);
 
   /* Form state */
   const [form, setForm] = useState({
@@ -129,12 +131,18 @@ const UserManagement = () => {
     if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email) ||
         (drawerMode === "create" && form.password.length < 6) ||
         (form.password && form.password.length < 6)) {
+      const fieldId = !form.name.trim() ? "um-name" : !/^\S+@\S+\.\S+$/.test(form.email) ? "um-email" : "um-password";
+      focusField(formRef.current, fieldId);
       setDrawerError("Enter a name, valid email, and a password of at least 6 characters."); return;
     }
     if (form.role === "student" && (!form.studentId.trim() || !form.course.trim() ||
       !Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 6 ||
       !["1st Semester", "2nd Semester", "Summer"].includes(form.semester) ||
       !/^\d{4}-\d{4}$/.test(form.schoolYear))) {
+      const fieldId = !form.studentId.trim() ? "um-studentId" : !form.course.trim() ? "um-course" :
+        (!Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 6) ? "um-yearLevel" :
+        !["1st Semester", "2nd Semester", "Summer"].includes(form.semester) ? "um-semester" : "um-schoolYear";
+      focusField(formRef.current, fieldId);
       setDrawerError("Complete the student's ID and valid academic information."); return;
     }
     setDrawerLoading(true);
@@ -387,7 +395,7 @@ const UserManagement = () => {
         title={drawerTitle}
         footer={drawerFooter}
       >
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
           {drawerError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {drawerError}

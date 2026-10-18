@@ -14,8 +14,13 @@ import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import { IconInbox, IconLoader } from "../components/icons/Icons";
 
-const FILTERS = ["All", "Pending", "Need Review", "Approved", "Rejected"];
+const FILTERS = ["All", "OCR Review", "Pending", "Need Review", "Approved", "Rejected"];
 const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
+const needsOcrReview = (payment) => payment.amountStatus === "Needs Review"
+  || payment.ocr?.status === "Failed"
+  || payment.validation?.amountMismatch
+  || payment.validation?.repeatedTerm
+  || Boolean(payment.ocr?.reviewReason);
 const REJECTION_REASONS = [
   { value: "blurry", label: "Image is blurry" },
   { value: "incomplete", label: "Receipt incomplete" },
@@ -31,6 +36,15 @@ const formatDate = (dateStr) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return "â€”";
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(dateStr));
 };
 
 const VerifyPayments = () => {
@@ -101,7 +115,11 @@ const VerifyPayments = () => {
   }, [searchQuery, showToast]);
 
   const filtered = useMemo(() => {
-    const list = filter === "All" ? payments : payments.filter((p) => p.status === filter);
+    const list = filter === "All"
+      ? payments
+      : filter === "OCR Review"
+        ? payments.filter(needsOcrReview)
+        : payments.filter((p) => p.status === filter);
     return [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [payments, filter]);
 
@@ -273,7 +291,7 @@ const VerifyPayments = () => {
               <table className="min-w-full divide-y divide-gray-100">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
-                    {["Student", "Invoice", "Amount", "Date", "Status", "Actions"].map(
+                    {["Student", "Invoice", "Amount", "Submitted", "Status", "Actions"].map(
                       (col) => (
                         <th
                           key={col}
@@ -317,7 +335,7 @@ const VerifyPayments = () => {
                           {payment.amount != null ? `${peso(payment.amount)}${payment.status === "Approved" ? "" : " (OCR)"}` : "Needs review"}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                          {formatDate(payment.createdAt)}
+                          {formatDateTime(payment.createdAt)}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4">
                           <StatusBadge status={payment.status} />
@@ -354,13 +372,25 @@ const VerifyPayments = () => {
             {selected && (
               <div className="space-y-5">
                 {selected.receiptImage && (
-                  <div className="overflow-hidden rounded-xl border border-gray-100">
+                  <section className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3">
+                      <h3 className="text-sm font-bold text-gray-800">Receipt image</h3>
+                      <a
+                        href={selected.receiptImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold text-sti-blue hover:underline"
+                      >
+                        Open full size
+                      </a>
+                    </div>
                     <img
                       src={selected.receiptImage}
                       alt="Receipt"
-                      className="w-full object-contain"
+                      className="max-h-[26rem] w-full object-contain"
+                      loading="eager"
                     />
-                  </div>
+                  </section>
                 )}
 
                 <dl className="space-y-3 text-sm">
@@ -386,14 +416,90 @@ const VerifyPayments = () => {
                   ))}
                 </dl>
 
+                {selected.ocr && (
+                  <section className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <h3 className="text-sm font-bold text-gray-800">OCR evidence</h3>
+                      <span className="text-xs font-semibold text-gray-600">
+                        {Number.isFinite(Number(selected.ocr.confidence))
+                          ? `${selected.ocr.confidence}% confidence`
+                          : "Confidence unavailable"}
+                      </span>
+                    </div>
+                    <dl className="mt-3 space-y-2 text-xs">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-gray-500">OCR status</dt>
+                        <dd className="font-semibold text-gray-800">{selected.ocr.status || "Unknown"}</dd>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-gray-500">Engine</dt>
+                        <dd className="text-right font-semibold text-gray-800">{selected.ocr.engineVersion || "Unknown"}</dd>
+                      </div>
+                    </dl>
+                    {selected.ocr.fields && (
+                      <div className="mt-3 border-t border-blue-100 pt-3">
+                        <p className="text-xs font-semibold text-gray-600">Detected fields</p>
+                        <dl className="mt-1 space-y-1 text-xs">
+                          <div className="flex justify-between gap-4"><dt className="text-gray-500">Student ID</dt><dd className="text-right font-semibold text-gray-800">{selected.ocr.fields.studentId || "Not detected"}</dd></div>
+                          <div className="flex justify-between gap-4"><dt className="text-gray-500">Invoice/reference</dt><dd className="text-right font-semibold text-gray-800">{selected.ocr.fields.invoiceNumber || "Not detected"}</dd></div>
+                          <div className="flex justify-between gap-4"><dt className="text-gray-500">Receipt date</dt><dd className="text-right font-semibold text-gray-800">{selected.ocr.fields.dateText || "Not detected"}</dd></div>
+                        </dl>
+                      </div>
+                    )}
+                    {selected.ocr.reviewReason && (
+                      <p className="mt-3 rounded-md bg-white p-2 text-xs text-amber-800">
+                        <strong>Review reason:</strong> {selected.ocr.reviewReason}
+                      </p>
+                    )}
+                    {selected.ocr.amountCandidates?.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-gray-600">Detected amount candidates</p>
+                        <ul className="mt-1 space-y-1 text-xs text-gray-700">
+                          {selected.ocr.amountCandidates.map((candidate, index) => (
+                            <li key={`${candidate.value}-${candidate.label}-${index}`} className="flex justify-between gap-4">
+                              <span>{candidate.label}</span>
+                              <span className="font-semibold">{peso(candidate.value)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {selected.ocr.rawText && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-sti-blue">View raw OCR text</summary>
+                        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-white p-2 text-[11px] text-gray-600">{selected.ocr.rawText}</pre>
+                      </details>
+                    )}
+                  </section>
+                )}
+
+                {selected.validation && (selected.validation.reviewReasons?.length > 0 || selected.validation.repeatedTerm || selected.validation.amountMismatch) && (
+                  <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <h3 className="text-sm font-bold text-amber-900">Validation warnings</h3>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-800">
+                      {(selected.validation.reviewReasons || []).map((reason, index) => (
+                        <li key={`${reason}-${index}`}>{reason}</li>
+                      ))}
+                    </ul>
+                    <dl className="mt-3 space-y-2 text-xs text-amber-900">
+                      {selected.validation.expectedAmount != null && (
+                        <div className="flex justify-between gap-4"><dt>Configured term amount</dt><dd className="font-semibold">{peso(selected.validation.expectedAmount)}</dd></div>
+                      )}
+                      {selected.validation.remainingBalance != null && (
+                        <div className="flex justify-between gap-4"><dt>Remaining balance at upload</dt><dd className="font-semibold">{peso(selected.validation.remainingBalance)}</dd></div>
+                      )}
+                    </dl>
+                  </section>
+                )}
+
                 {["Pending", "Need Review"].includes(selected.status) && (
                   <div className="space-y-4 border-t border-gray-200 pt-4">
                     <div>
-                      <label htmlFor="verified-amount" className="mb-2 block text-sm font-semibold text-gray-700">Verified amount paid (PHP) *</label>
+                      <label htmlFor="verified-amount" className="mb-2 block text-sm font-semibold text-gray-700">Cashier confirmed amount (PHP) *</label>
                       <input id="verified-amount" type="number" min="0.01" step="0.01" value={confirmedAmount}
                         onChange={(e) => setConfirmedAmount(e.target.value)}
                         className="min-h-11 w-full rounded-lg border border-gray-200 px-3" />
-                      <p className="mt-1 text-xs text-gray-500">OCR: {selected.amountStatus || "Needs Review"}. Check the receipt before approving.</p>
+                      <p className="mt-1 text-xs text-gray-500">This amount is recorded in the student ledger after approval. OCR: {selected.amountStatus || "Needs Review"}.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -230,10 +230,11 @@ const Header = ({ onMenuClick }) => {
                         {symbol}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-sm line-clamp-2 ${isUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}
-                        >
-                          {displayNotificationMessage(item.message) || item.title}
+                        <p className={`text-sm ${isUnread ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
+                          {item.title}
+                        </p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
+                          {displayNotificationMessage(item.message)}
                         </p>
                         <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                           {timeAgo(item.createdAt)}

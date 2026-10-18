@@ -15,6 +15,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import { IconLoader, IconX } from "../components/icons/Icons";
+import { focusFirstInvalid } from "../utils/formNavigation";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -22,6 +23,29 @@ const MONTHS = [
 ];
 
 const EXAM_TYPES = ["Prelim", "Midterm", "PreFinal", "Final"];
+const displayTime = (value) => {
+  if (!value) return "";
+  const [hour, minute] = value.split(":").map(Number);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+const examTime = (exam) => exam?.startTime && exam?.endTime
+  ? `${displayTime(exam.startTime)} - ${displayTime(exam.endTime)}` : exam?.schedule || "Time not set";
+const parseLegacyTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return "";
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const suffix = match[3]?.toUpperCase();
+  if (suffix === "PM" && hour < 12) hour += 12;
+  if (suffix === "AM" && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return "";
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+const parseLegacySchedule = (schedule) => {
+  const parts = String(schedule || "").split(/\s+-\s+/);
+  return parts.length === 2 ? [parseLegacyTime(parts[0]), parseLegacyTime(parts[1])] : ["", ""];
+};
 
 const getDaysInMonth = (year, month) => {
   return new Date(year, month + 1, 0).getDate();
@@ -55,7 +79,9 @@ const ExamSchedule = () => {
 
   useEffect(() => { getTermSchedules().then(setPublished).catch(() => {}); }, []);
   const handlePublish = async (event) => {
-    event.preventDefault(); setPublishMessage(""); setPublishLoading(true);
+    event.preventDefault(); setPublishMessage("");
+    if (focusFirstInvalid(event.currentTarget)) return;
+    setPublishLoading(true);
     try {
       await publishTermSchedule(publishForm);
       setPublished(await getTermSchedules());
@@ -160,6 +186,7 @@ const ExamSchedule = () => {
   };
 
   const handleEditExam = (exam) => {
+    const [legacyStart, legacyEnd] = parseLegacySchedule(exam.schedule);
     setDrawerMode("edit");
     setSelectedExam(exam);
     setFormData({
@@ -167,8 +194,8 @@ const ExamSchedule = () => {
       subject: exam.subject,
       subjectCode: exam.subjectCode,
       schedule: exam.schedule,
-      startTime: exam.startTime || "",
-      endTime: exam.endTime || "",
+      startTime: exam.startTime || legacyStart,
+      endTime: exam.endTime || legacyEnd,
       room: exam.room || "",
       capacity: exam.capacity || "",
       courseYear: exam.courseYear || "",
@@ -179,18 +206,32 @@ const ExamSchedule = () => {
   };
 
   const handleAddExam = async () => {
-    if (!formData.subject || !formData.subjectCode || !formData.schedule) {
-      showToast("Please fill in all required fields.", "error");
+    if (!formData.subject || !formData.subjectCode || !formData.startTime || !formData.endTime) {
+      showToast("Enter the subject, subject code, start time, and end time.", "error");
+      return;
+    }
+    if (formData.startTime >= formData.endTime) {
+      showToast("End time must be later than start time.", "error");
       return;
     }
 
     setActionLoading(true);
     try {
-      await createExam({
+      const createdExam = await createExam({
         examDate: selectedDate,
         ...formData,
         capacity: formData.capacity ? Number(formData.capacity) : null,
       });
+      if (selectedProctor) {
+        try {
+          await assignProctor(createdExam._id, selectedProctor);
+        } catch (assignmentError) {
+          showToast(assignmentError.response?.data?.message || "Exam saved, but teacher assignment failed.", "error");
+          setShowDrawer(false);
+          await fetchData();
+          return;
+        }
+      }
       showToast("Exam added successfully.", "success");
       setShowDrawer(false);
       await fetchData();
@@ -202,8 +243,12 @@ const ExamSchedule = () => {
   };
 
   const handleUpdateExam = async () => {
-    if (!formData.subject || !formData.subjectCode || !formData.schedule) {
-      showToast("Please fill in all required fields.", "error");
+    if (!formData.subject || !formData.subjectCode || !formData.startTime || !formData.endTime) {
+      showToast("Enter the subject, subject code, start time, and end time.", "error");
+      return;
+    }
+    if (formData.startTime >= formData.endTime) {
+      showToast("End time must be later than start time.", "error");
       return;
     }
 
@@ -231,10 +276,10 @@ const ExamSchedule = () => {
 
     setActionLoading(true);
     try {
-      await assignProctor(selectedExam._id, selectedProctor);
+      const updatedExam = await assignProctor(selectedExam._id, selectedProctor);
       showToast("Teacher assigned successfully.", "success");
       await fetchData();
-      handleEditExam(selectedExam);
+      handleEditExam(updatedExam);
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to assign teacher.", "error");
     } finally {
@@ -245,10 +290,10 @@ const ExamSchedule = () => {
   const handleRemoveProctor = async () => {
     setActionLoading(true);
     try {
-      await removeProctor(selectedExam._id);
+      const updatedExam = await removeProctor(selectedExam._id);
       showToast("Teacher removed successfully.", "success");
       await fetchData();
-      handleEditExam(selectedExam);
+      handleEditExam(updatedExam);
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to remove teacher.", "error");
     } finally {
@@ -293,21 +338,21 @@ const ExamSchedule = () => {
       <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-gray-800">Publish examination term</h2>
         <p className="mt-1 text-sm text-gray-500">This publishes a term date for students. Subject exams and proctor assignments below remain separate.</p>
-        <form onSubmit={handlePublish} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm font-semibold text-gray-700">Exam date
-            <input type="date" required value={publishForm.examDate} onChange={(e) => setPublishForm({ ...publishForm, examDate: e.target.value })}
+        <form onSubmit={handlePublish} noValidate className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label htmlFor="publish-exam-date" className="text-sm font-semibold text-gray-700">Exam date
+            <input id="publish-exam-date" type="date" required value={publishForm.examDate} onChange={(e) => setPublishForm({ ...publishForm, examDate: e.target.value })}
               className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
-          <label className="text-sm font-semibold text-gray-700">Semester
-            <select required value={publishForm.semester} onChange={(e) => setPublishForm({ ...publishForm, semester: e.target.value })}
+          <label htmlFor="publish-semester" className="text-sm font-semibold text-gray-700">Semester
+            <select id="publish-semester" required value={publishForm.semester} onChange={(e) => setPublishForm({ ...publishForm, semester: e.target.value })}
               className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
               <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
             </select></label>
-          <label className="text-sm font-semibold text-gray-700">School year
-            <input type="text" required pattern="[0-9]{4}-[0-9]{4}" placeholder="2026-2027" value={publishForm.schoolYear}
+          <label htmlFor="publish-school-year" className="text-sm font-semibold text-gray-700">School year
+            <input id="publish-school-year" type="text" required pattern="[0-9]{4}-[0-9]{4}" placeholder="2026-2027" value={publishForm.schoolYear}
               onChange={(e) => setPublishForm({ ...publishForm, schoolYear: e.target.value })}
               className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
-          <label className="text-sm font-semibold text-gray-700">Exam term
-            <select required value={publishForm.examType} onChange={(e) => setPublishForm({ ...publishForm, examType: e.target.value })}
+          <label htmlFor="publish-exam-type" className="text-sm font-semibold text-gray-700">Exam term
+            <select id="publish-exam-type" required value={publishForm.examType} onChange={(e) => setPublishForm({ ...publishForm, examType: e.target.value })}
               className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
               <option value="">Select term</option>{EXAM_TYPES.map((term) => <option key={term}>{term}</option>)}
             </select></label>
@@ -429,7 +474,7 @@ const ExamSchedule = () => {
                     className="w-full text-left rounded-lg border border-gray-200 p-3 hover:bg-blue-50 transition"
                   >
                     <p className="font-semibold text-sm text-gray-800">{exam.subjectCode}</p>
-                    <p className="text-xs text-gray-600">{exam.schedule}</p>
+                    <p className="text-xs text-gray-600">{examTime(exam)}</p>
                     {exam.proctorName && (
                       <p className="text-xs text-blue-600 mt-1 font-semibold">Proctor: {exam.proctorName}</p>
                     )}
@@ -451,17 +496,19 @@ const ExamSchedule = () => {
             <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
               <p className="font-semibold mb-1">Exam Details:</p>
               <p>{selectedExam.subject} ({selectedExam.subjectCode})</p>
-              <p className="text-xs mt-1">{formatDate(selectedExam.examDate)} • {selectedExam.schedule}</p>
+              <p className="text-xs mt-1">{formatDate(selectedExam.examDate)} • {examTime(selectedExam)}</p>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Exam Type
+            <label htmlFor="exam-type" className="block text-sm font-semibold text-gray-700 mb-2">
+              Examination Term <span className="text-xs font-normal text-gray-500">(eligibility category)</span>
             </label>
             <select
+              id="exam-type"
               value={formData.examType}
               onChange={(e) => setFormData({ ...formData, examType: e.target.value })}
+              disabled={drawerMode === "edit"}
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
               {EXAM_TYPES.map((type) => (
@@ -500,13 +547,26 @@ const ExamSchedule = () => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Schedule <span className="text-red-500">*</span>
+              Start Time <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              value={formData.schedule}
-              onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-              placeholder="e.g., 9:00 AM - 11:00 AM"
+              type="time"
+              required
+              value={formData.startTime}
+              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              End Time <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="time"
+              required
+              value={formData.endTime}
+              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
@@ -567,37 +627,13 @@ const ExamSchedule = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Start Time (Optional)
-              </label>
-              <input
-                type="time"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                End Time (Optional)
-              </label>
-              <input
-                type="time"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-          </div>
-
           {drawerMode === "edit" && selectedExam && (
             <div className="border-t border-gray-200 pt-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Assign Proctor (Teacher)
+              <label htmlFor="exam-proctor" className="block text-sm font-semibold text-gray-700 mb-2">
+                Assign Teacher / Proctor
               </label>
               <select
+                id="exam-proctor"
                 value={selectedProctor}
                 onChange={(e) => setSelectedProctor(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -610,28 +646,45 @@ const ExamSchedule = () => {
                 ))}
               </select>
 
-              {selectedExam.proctorName ? (
-                <div className="mt-3 rounded-lg bg-green-50 p-3 text-sm">
-                  <p className="text-green-900 font-semibold">Proctor Assigned</p>
-                  <p className="text-green-700">{selectedExam.proctorName}</p>
-                  <button
-                    onClick={handleRemoveProctor}
-                    disabled={actionLoading}
-                    className="mt-2 text-xs text-red-600 hover:text-red-700 font-semibold disabled:opacity-60"
-                  >
-                    Remove Proctor
-                  </button>
-                </div>
-              ) : (
+              {selectedExam.proctorName && <p className="mt-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+                Currently assigned: <strong>{selectedExam.proctorName}</strong>
+              </p>}
+              <div className="mt-3 flex gap-2">
                 <button
+                  type="button"
                   onClick={handleAssignProctor}
                   disabled={actionLoading || !selectedProctor}
-                  className="mt-3 w-full rounded-lg bg-blue-600 text-white px-3 py-2.5 text-sm font-semibold hover:bg-blue-700 shadow-[0_4px_14px_rgba(37,99,235,0.39)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 flex items-center justify-center gap-2 transition"
+                  className="flex-1 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.39)] transition hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {actionLoading ? <IconLoader className="h-4 w-4" /> : null}
-                  Assign Proctor
+                  {actionLoading ? <IconLoader className="mx-auto h-4 w-4" /> : selectedExam.proctorName ? "Reassign" : "Assign"}
                 </button>
-              )}
+                {selectedExam.proctorName && <button
+                  type="button"
+                  onClick={handleRemoveProctor}
+                  disabled={actionLoading}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                >
+                  Remove
+                </button>}
+              </div>
+            </div>
+          )}
+
+          {drawerMode === "add" && (
+            <div className="border-t border-gray-200 pt-4">
+              <label htmlFor="new-exam-proctor" className="block text-sm font-semibold text-gray-700 mb-2">
+                Assign Teacher / Proctor (Optional)
+              </label>
+              <select
+                id="new-exam-proctor"
+                value={selectedProctor}
+                onChange={(e) => setSelectedProctor(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="">Leave unassigned</option>
+                {teachers.map((teacher) => <option key={teacher._id} value={teacher._id}>{teacher.name}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">The selected teacher will receive an in-app assignment notification after the exam is saved.</p>
             </div>
           )}
 

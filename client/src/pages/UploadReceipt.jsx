@@ -10,6 +10,7 @@ export default function UploadReceipt() {
   const descriptionRef = useRef(null);
   const fileRef = useRef(null);
   const [account, setAccount] = useState(null);
+  const [paymentType, setPaymentType] = useState("Term");
   const [term, setTerm] = useState("");
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
@@ -20,19 +21,20 @@ export default function UploadReceipt() {
   const focusMissing = (ref, message) => {
     setError(message);
     ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    ref.current?.focus();
+    ref.current?.focus({ preventScroll: true });
   };
   const submit = async (event) => {
     event.preventDefault(); setError("");
-    if (!term) return focusMissing(descriptionRef, "Please select a payment description.");
+    if (paymentType === "Term" && !term) return focusMissing(descriptionRef, "Please select an examination term.");
     if (!file) return focusMissing(fileRef, "Please upload your payment receipt.");
     if (!account) return setError("Your account is still loading. Try again shortly.");
     setLoading(true);
     try {
       const data = new FormData();
       data.append("receipt", file);
-      data.append("paymentDescription", `Tuition - ${term}`);
-      data.append("examCoverage", term);
+      data.append("paymentType", paymentType);
+      data.append("paymentDescription", paymentType === "Full Tuition" ? "Full Tuition Payment" : `Tuition - ${term}`);
+      if (paymentType === "Term") data.append("examCoverage", term);
       setSubmitted(await uploadPayment(data));
     } catch (err) { setError(err.response?.data?.message || "Upload failed. Please try again."); }
     finally { setLoading(false); }
@@ -58,12 +60,21 @@ export default function UploadReceipt() {
         <input id="upload-name" readOnly value={account?.name || "Loading…"} className="min-h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-3" /></div>
       <div><label htmlFor="upload-id" className="mb-1 block text-sm font-semibold">Student ID</label>
         <input id="upload-id" readOnly value={account?.studentId || ""} className="min-h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-3" /></div>
-      <div><label htmlFor="upload-description" className="mb-1 block text-sm font-semibold">Payment description *</label>
+      <div><label htmlFor="upload-payment-type" className="mb-1 block text-sm font-semibold">Payment type *</label>
+        <select id="upload-payment-type" value={paymentType} onChange={(e) => { setPaymentType(e.target.value); setTerm(""); }}
+          className="min-h-11 w-full rounded-lg border border-gray-200 px-3 focus:border-sti-blue focus:outline-none">
+          <option value="Term">Examination term payment</option>
+          <option value="Full Tuition">Full tuition payment</option>
+        </select></div>
+      {paymentType === "Term" && <div><label htmlFor="upload-description" className="mb-1 block text-sm font-semibold">Examination term *</label>
         <select id="upload-description" ref={descriptionRef} value={term} onChange={(e) => setTerm(e.target.value)}
           className="min-h-11 w-full rounded-lg border border-gray-200 px-3 focus:border-sti-blue focus:outline-none">
-          <option value="">Select a payment description</option>
+          <option value="">Select an examination term</option>
           {TERMS.map((value) => <option key={value} value={value}>Tuition - {value}</option>)}
-        </select></div>
+        </select></div>}
+      {paymentType === "Full Tuition" && <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+        This payment covers your remaining tuition for {account?.semester || "the current semester"} ({account?.schoolYear || "the current school year"}). A cashier will confirm the amount before all exam permits are enabled.
+      </p>}
       <div><label htmlFor="upload-file" className="mb-1 block text-sm font-semibold">Payment receipt *</label>
         <input id="upload-file" ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf"
           onChange={(e) => {

@@ -14,6 +14,7 @@ import {
   IconCheckCircle,
 } from "../components/icons/Icons";
 import { getDefaultRoute } from "../hooks/useAuth";
+import { focusField } from "../utils/formNavigation";
 
 const REMEMBER_KEY = "edupay_remember_email";
 
@@ -80,11 +81,13 @@ const Login = () => {
     setError("");
 
     if (!email.trim() || !password) {
+      focusField(e.currentTarget, !email.trim() ? "login-email" : "login-password");
       setError("Please enter your email and password.");
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
+      focusField(e.currentTarget, "login-email");
       setError("Please enter a valid email address.");
       return;
     }
@@ -123,21 +126,28 @@ const Login = () => {
 
     if (!studentId.trim() || !name.trim() || !email.trim() || !password ||
         !course.trim() || !yearLevel || !semester || !/^\d{4}-\d{4}$/.test(schoolYear)) {
+      const missingId = !studentId.trim() ? "signup-student-id" : !name.trim() ? "signup-name" :
+        !email.trim() ? "signup-email" : !password ? "signup-password" : !course.trim() ? "signup-course" :
+        !yearLevel ? "signup-year" : !semester ? "signup-semester" : "signup-school-year";
+      focusField(e.currentTarget, missingId);
       setError("All fields marked with * are required.");
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
+      focusField(e.currentTarget, "signup-email");
       setError("Please enter a valid email address.");
       return;
     }
 
     if (password.length < 6) {
+      focusField(e.currentTarget, "signup-password");
       setError("Password must be at least 6 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
+      focusField(e.currentTarget, "signup-confirm");
       setError("Passwords do not match.");
       return;
     }

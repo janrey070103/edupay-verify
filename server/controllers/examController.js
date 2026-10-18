@@ -2,17 +2,27 @@ const Exam = require("../Models/Exam");
 const User = require("../Models/User");
 const Notification = require("../Models/Notification");
 
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const formatTime = (value) => {
+  const [hour, minute] = value.split(":").map(Number);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+const buildSchedule = (startTime, endTime) => `${formatTime(startTime)} - ${formatTime(endTime)}`;
+
 // Create exam
 const createExam = async (req, res) => {
   try {
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity, courseYear, courseSection } = req.body;
+    const { examDate, examType, subject, subjectCode, startTime, endTime, room, capacity, courseYear, courseSection } = req.body;
 
     // Validate required fields
-    if (!examDate || !examType || !subject || !subjectCode || !schedule) {
+    if (!examDate || !examType || !subject || !subjectCode || !TIME_PATTERN.test(startTime || "") || !TIME_PATTERN.test(endTime || "")) {
       return res.status(400).json({
-        message: "examDate, examType, subject, subjectCode, and schedule are required.",
+        message: "Exam date, term, subject, subject code, start time, and end time are required.",
       });
     }
+    if (startTime >= endTime) return res.status(400).json({ message: "End time must be later than start time." });
 
     // Check if exam already exists for this date and subject code
     const existing = await Exam.findOne({
@@ -31,7 +41,9 @@ const createExam = async (req, res) => {
       examType,
       subject,
       subjectCode,
-      schedule,
+      schedule: buildSchedule(startTime, endTime),
+      startTime,
+      endTime,
       room: room || null,
       capacity: capacity || null,
       courseYear: courseYear ? Number(courseYear) : undefined,
@@ -107,7 +119,7 @@ const getExamsForTeacher = async (req, res) => {
 const updateExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity, status, courseYear, courseSection } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, startTime, endTime, room, capacity, status, courseYear, courseSection } = req.body;
 
     const exam = await Exam.findById(id);
 
@@ -137,7 +149,18 @@ const updateExam = async (req, res) => {
     if (examType) exam.examType = examType;
     if (subject) exam.subject = subject;
     if (subjectCode) exam.subjectCode = subjectCode;
-    if (schedule) exam.schedule = schedule;
+    if (startTime !== undefined || endTime !== undefined) {
+      if (!TIME_PATTERN.test(startTime || "") || !TIME_PATTERN.test(endTime || "")) {
+        return res.status(400).json({ message: "Enter a valid start time and end time." });
+      }
+      if (startTime >= endTime) return res.status(400).json({ message: "End time must be later than start time." });
+      exam.startTime = startTime;
+      exam.endTime = endTime;
+      exam.schedule = buildSchedule(startTime, endTime);
+    } else if (schedule) {
+      // Preserve legacy records that only have the old free-text schedule.
+      exam.schedule = schedule;
+    }
     if (room !== undefined) exam.room = room;
     if (capacity !== undefined) exam.capacity = capacity;
     if (courseYear !== undefined) exam.courseYear = courseYear ? Number(courseYear) : undefined;
@@ -183,9 +206,9 @@ const assignProctor = async (req, res) => {
       return res.status(404).json({ message: "Exam not found." });
     }
 
-    const teacher = await User.findById(proctorId);
+    const teacher = await User.findOne({ _id: proctorId, role: "teacher", isActive: { $ne: false } });
 
-    if (!teacher || teacher.role !== "teacher") {
+    if (!teacher || teacher.verificationStatus === "rejected") {
       return res.status(404).json({ message: "Teacher not found." });
     }
 

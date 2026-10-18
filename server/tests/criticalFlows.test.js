@@ -14,7 +14,7 @@ const TermSchedule = require("../Models/TermSchedule");
 const Exam = require("../Models/Exam");
 const { scanPermit } = require("../controllers/qrController");
 const { publish, mine } = require("../controllers/termScheduleController");
-const { approvePayment, rejectPayment, createDirectPayment } = require("../controllers/paymentController");
+const { createPayment, approvePayment, rejectPayment, createDirectPayment } = require("../controllers/paymentController");
 
 const response = () => ({ statusCode: 200, body: null,
   status(code) { this.statusCode = code; return this; },
@@ -24,10 +24,93 @@ const response = () => ({ statusCode: 200, body: null,
 test("OCR only accepts an unambiguous labelled transaction amount", () => {
   assert.deepEqual(extractText.extractAmountDetails("REFERENCE 12345678\nDATE 10/08/2026\nAMOUNT PAID: PHP 2,500.00"),
     { amount: 2500, status: "Detected" });
+  assert.deepEqual(extractText.extractAmountDetails("TOTAL: PHP 2500"),
+    { amount: 2500, status: "Detected" });
+  assert.deepEqual(extractText.extractAmountDetails("AM0UNT PAID\nPHP 2.500,00"),
+    { amount: 2500, status: "Detected" });
   assert.deepEqual(extractText.extractAmountDetails("REFERENCE 2500\nACCOUNT 123456"),
     { amount: null, status: "Needs Review" });
   assert.deepEqual(extractText.extractAmountDetails("AMOUNT PAID: 2,500.00\nTOTAL PAID: 3,000.00"),
     { amount: null, status: "Needs Review" });
+});
+
+test("OCR source selection uses Cloudinary preprocessing and PDF rasterization", () => {
+  const imageSources = extractText.getOcrSources(
+    "https://res.cloudinary.com/demo/image/upload/v1/edupay-receipts/receipt.jpg",
+    "image/jpeg"
+  );
+  assert.match(imageSources[0], /f_jpg,w_2400,c_limit,e_grayscale,e_contrast:80,e_sharpen:60/);
+  assert.equal(imageSources.at(-1), "https://res.cloudinary.com/demo/image/upload/v1/edupay-receipts/receipt.jpg");
+
+  const pdfSources = extractText.getOcrSources(
+    "https://res.cloudinary.com/demo/image/upload/v1/edupay-receipts/receipt.pdf",
+    "application/pdf"
+  );
+  assert.match(pdfSources[0], /pg_1,f_jpg,w_2400,c_limit,e_grayscale,e_contrast:80,e_sharpen:60/);
+});
+
+test("OCR structured results preserve confidence, fields, candidates, and review reasons", () => {
+  const result = extractText.buildStructuredResult([
+    { text: "INVOICE NO: INV-1234\nSTUDENT ID: 23-1277-959\nDATE: 2026-10-08\nAMOUNT PAID: PHP 2,500.00", confidence: 92 },
+    { text: "TOTAL PAID: PHP 2,500.00", confidence: 88 },
+  ]);
+  assert.equal(result.confidence, 90);
+  assert.equal(result.ocr.status, "Completed");
+  assert.equal(result.ocr.fields.invoiceNumber, "INV-1234");
+  assert.equal(result.ocr.fields.studentId, "23-1277-959");
+  assert.equal(result.ocr.fields.dateText, "2026-10-08");
+  assert.deepEqual([...new Set(result.ocr.amountCandidates.map((candidate) => candidate.value))], [2500]);
+  assert.equal(result.ocr.reviewReason, "");
+
+  const review = extractText.buildStructuredResult([
+    { text: "TOTAL: PHP 2,500.00\nAMOUNT PAID: PHP 3,000.00", confidence: 90 },
+  ]);
+  assert.equal(review.ocr.reviewReason, "Conflicting payment amounts detected.");
+});
+
+test("full tuition receipt stores academic period without an exam coverage", async () => {
+  const originals = {
+    findUser: User.findById,
+    findPayment: Payment.findOne,
+    createPayment: Payment.create,
+    findLedger: Ledger.findOne,
+    notify: Notification.create,
+    detailed: extractText.extractDetailed,
+  };
+  let stored;
+  User.findById = async () => ({ role: "student", studentId: "23-1277-959", name: "Student",
+    semester: "1st Semester", schoolYear: "2026-2027" });
+  Payment.findOne = async () => null;
+  Payment.create = async (values) => { stored = values; return { _id: "payment-full-1", ...values }; };
+  Ledger.findOne = async () => ({ remainingBalance: 20000, fullyPaid: false });
+  Notification.create = async () => ({});
+  extractText.extractDetailed = async () => ({
+    text: "FULL TUITION\nAMOUNT PAID: PHP 20,000.00",
+    ocr: {
+      status: "Completed", rawText: "FULL TUITION\nAMOUNT PAID: PHP 20,000.00", confidence: 95,
+      amountCandidates: [{ value: 20000, label: "AMOUNT PAID", raw: "20,000.00", confidence: 95 }],
+      fields: { invoiceNumber: "", studentId: "23-1277-959", dateText: "" },
+      reviewReason: "", engineVersion: "test", processedAt: new Date(),
+    },
+  });
+  try {
+    const res = response();
+    await createPayment({
+      user: { id: "student-1" },
+      body: { paymentType: "Full Tuition", paymentDescription: "Full Tuition Payment" },
+      file: { path: "https://receipt.test/full.jpg", mimetype: "image/jpeg", etag: "full-receipt" },
+    }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(stored.paymentType, "Full Tuition");
+    assert.equal(stored.paymentDescription, "Full Tuition Payment");
+    assert.equal(stored.examCoverage, undefined);
+    assert.equal(stored.semester, "1st Semester");
+    assert.equal(stored.schoolYear, "2026-2027");
+  } finally {
+    User.findById = originals.findUser; Payment.findOne = originals.findPayment;
+    Payment.create = originals.createPayment; Ledger.findOne = originals.findLedger;
+    Notification.create = originals.notify; extractText.extractDetailed = originals.detailed;
+  }
 });
 
 test("protected routes reject deactivated accounts and stale role claims", async () => {
@@ -104,8 +187,9 @@ test("rejection stores trimmed remarks without changing the ledger", async () =>
     notify: Notification.create, findLedger: Ledger.findOne };
   let update; let ledgerRead = false;
   mongoose.startSession = async () => ({ withTransaction: async (callback) => callback(), endSession: async () => {} });
-  Payment.findOneAndUpdate = async (_filter, value) => { update = value; return { studentId: "student-1", studentName: "Student" }; };
-  Notification.create = async () => [{}];
+  Payment.findOneAndUpdate = async (_filter, value) => { update = value; return { studentId: "student-1", studentName: "Student", examCoverage: "Final" }; };
+  let rejectionNotification;
+  Notification.create = async (values) => { rejectionNotification = values[0]; return [{}]; };
   Ledger.findOne = () => { ledgerRead = true; return null; };
   try {
     const res = response();
@@ -113,6 +197,9 @@ test("rejection stores trimmed remarks without changing the ledger", async () =>
     assert.equal(res.statusCode, 200);
     assert.equal(update.$set.remarks, "Blurry image");
     assert.equal(update.$set.status, "Rejected");
+    assert.equal(rejectionNotification.title, "Rejected Exam Permit");
+    assert.match(rejectionNotification.message, /Final permit request was rejected/);
+    assert.match(rejectionNotification.message, /Remarks: Blurry image/);
     assert.equal(ledgerRead, false);
   } finally {
     mongoose.startSession = originals.startSession; Payment.findOneAndUpdate = originals.findPayment;
@@ -123,7 +210,7 @@ test("rejection stores trimmed remarks without changing the ledger", async () =>
 test("a direct payment without exam coverage still updates the approved ledger total", async () => {
   const originals = { startSession: mongoose.startSession, findStudent: User.findOne,
     createPayment: Payment.create, findLedger: Ledger.findOne, notify: Notification.create };
-  const ledger = { paidAmount: 0, totalTuition: 20000, remainingBalance: 20000, fullyPaid: false,
+  const ledger = { paidAmount: 0, totalTuition: 20000, tuitionConfigured: true, remainingBalance: 20000, fullyPaid: false,
     save: async () => {} };
   mongoose.startSession = async () => ({ withTransaction: async (callback) => callback(), endSession: async () => {} });
   User.findOne = () => ({ session: async () => ({ name: "Student" }) });

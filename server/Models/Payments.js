@@ -7,6 +7,7 @@ const paymentSchema = new mongoose.Schema(
     studentName: String,
 
     invoiceNumber: String,
+    invoiceKey: String,
 
     amount: Number,
     amountStatus: {
@@ -17,9 +18,54 @@ const paymentSchema = new mongoose.Schema(
 
     paymentDescription: String,
 
+    paymentType: {
+      type: String,
+      enum: ["Term", "Full Tuition"],
+      default: "Term",
+    },
+
+    semester: String,
+    schoolYear: String,
+
     receiptDate: Date,
 
     receiptImage: String,
+    receiptHash: String,
+
+    validation: {
+      duplicate: { type: Boolean, default: false },
+      repeatedTerm: { type: Boolean, default: false },
+      amountMismatch: { type: Boolean, default: false },
+      expectedAmount: Number,
+      remainingBalance: Number,
+      duplicateOf: String,
+      reviewReasons: [String],
+      checkedAt: Date,
+    },
+
+    ocr: {
+      status: {
+        type: String,
+        enum: ["Completed", "Failed"],
+      },
+      rawText: String,
+      confidence: Number,
+      amountCandidates: [{
+        value: Number,
+        label: String,
+        raw: String,
+        confidence: Number,
+      }],
+      fields: {
+        invoiceNumber: String,
+        studentId: String,
+        dateText: String,
+      },
+      reviewReason: String,
+      engineVersion: String,
+      processedAt: Date,
+      error: String,
+    },
 
     examCoverage: {
       type: String,

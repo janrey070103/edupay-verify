@@ -34,26 +34,35 @@ const StudentDashboard = () => {
   const [selectedPayment, setSelectedPayment] = useState(null);
 
   useEffect(() => {
+    let active = true;
+
     const fetchPayments = async () => {
       try {
         const data = await getPayments();
-        setPayments(data);
+        if (active) setPayments(data);
       } catch {
-        setError("Could not load payment data.");
+        if (active) setError("Could not load payment data.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchPayments();
+
+    const refreshTimer = setInterval(fetchPayments, 30000);
+
+    return () => {
+      active = false;
+      clearInterval(refreshTimer);
+    };
   }, []);
 
   const stats = useMemo(() => {
-    const pending = payments.filter((p) => p.status === "Pending").length;
-    const approved = payments.filter((p) => p.status === "Approved").length;
-    const needAction = payments.filter(
-      (p) => p.status === "Rejected" || p.status === "Need Review"
+    const pending = payments.filter(
+      (p) => p.status === "Pending" || p.status === "Need Review"
     ).length;
+    const approved = payments.filter((p) => p.status === "Approved").length;
+    const needAction = payments.filter((p) => p.status === "Rejected").length;
 
     return {
       total: payments.length,
@@ -89,7 +98,7 @@ const StudentDashboard = () => {
           loading={loading}
         />
         <StatCard
-          label="Pending"
+          label="Awaiting Review"
           value={stats.pending}
           valueClassName="text-amber-600"
           loading={loading}
@@ -101,7 +110,7 @@ const StudentDashboard = () => {
           loading={loading}
         />
         <StatCard
-          label="Need Action"
+          label="Rejected / Action Required"
           value={stats.needAction}
           valueClassName="text-red-500"
           loading={loading}

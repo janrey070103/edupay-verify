@@ -183,7 +183,7 @@ const Notifications = () => {
                           {item.title}
                         </p>
                         <p className="mt-0.5 text-sm text-gray-500">
-                          {displayNotificationMessage(item.message)}
+                          {displayNotificationMessage(item.message) || "No additional details provided."}
                         </p>
                       </div>
 

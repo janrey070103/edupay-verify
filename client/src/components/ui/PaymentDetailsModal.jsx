@@ -8,14 +8,20 @@ const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", curr
 
 export default function PaymentDetailsModal({ isOpen, onClose, payment }) {
   if (!payment) return null;
+  const hasAmount = payment.amount != null && Number.isFinite(Number(payment.amount));
+  const amountStatus = payment.status === "Approved"
+    ? "Confirmed by Cashier"
+    : payment.amountStatus || "Needs Review";
   const details = [
     ["Student full name", payment.studentName], ["Student ID", payment.studentId],
+    ["Payment type", payment.paymentType || "Term"],
     ["Payment description", payment.paymentDescription],
-    ["Actual amount paid", payment.status === "Approved" && payment.amount != null && Number.isFinite(Number(payment.amount))
-      ? peso(payment.amount) : "Awaiting cashier verification"],
+    ["Payment amount", hasAmount ? peso(payment.amount) : "Not detected"],
+    ["Amount status", amountStatus],
     ["Transaction date", datePH(payment.receiptDate || payment.createdAt)],
     ["Reference number", payment.invoiceNumber || "—"],
     ["Exam coverage", payment.examCoverage || "—"],
+    ["Academic period", payment.semester && payment.schoolYear ? `${payment.semester} · ${payment.schoolYear}` : "Not specified"],
     ["Cashier verified at", datePH(payment.approvedAt)],
     ["Cashier ID", payment.approvedBy || "—"],
   ];

@@ -8,7 +8,13 @@ new mongoose.Schema({
 
   totalTuition: {
     type: Number,
-    default: 20000,
+    min: 0,
+    default: null,
+  },
+
+  tuitionConfigured: {
+    type: Boolean,
+    default: false,
   },
 
   paidAmount: {
@@ -18,7 +24,15 @@ new mongoose.Schema({
 
   remainingBalance: {
     type: Number,
-    default: 20000,
+    min: 0,
+    default: null,
+  },
+
+  termTuition: {
+    prelim: { type: Number, min: 0 },
+    midterm: { type: Number, min: 0 },
+    preFinal: { type: Number, min: 0 },
+    final: { type: Number, min: 0 },
   },
 
   fullyPaid: {
