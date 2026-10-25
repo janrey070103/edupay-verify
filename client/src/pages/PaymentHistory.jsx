@@ -142,8 +142,6 @@ const PaymentHistory = () => {
                 </div>
                 <div className="flex flex-col items-start gap-2">
                   <StatusBadge status={payment.status} />
-                  {payment.status === "Rejected" && payment.remarks &&
-                    <p className="max-w-xs text-sm text-red-700"><strong>Remarks:</strong> {payment.remarks}</p>}
                   <button type="button" onClick={() => setSelectedPayment(payment)}
                     className="min-h-11 rounded-lg border border-gray-200 px-3 text-sm font-semibold text-sti-blue">View details</button>
                 </div>
