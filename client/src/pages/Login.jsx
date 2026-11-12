@@ -16,6 +16,7 @@ import {
 import { getDefaultRoute } from "../hooks/useAuth";
 import useCatalog from "../hooks/useCatalog";
 import CourseSelect from "../components/ui/CourseSelect";
+import { focusField } from "../utils/formNavigation";
 
 const REMEMBER_KEY = "edupay_remember_email";
 
@@ -88,11 +89,13 @@ const Login = () => {
 
     if (!email.trim() || !password) {
       setError("Please enter your email and password.");
+      focusField(e.currentTarget, !email.trim() ? "login-email" : "login-password");
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
+      focusField(e.currentTarget, "login-email");
       return;
     }
 
@@ -131,21 +134,32 @@ const Login = () => {
     if (!studentId.trim() || !lastName.trim() || !firstName.trim() || !email.trim() || !password ||
         !course.trim() || !yearLevel || !semester || !/^\d{4}-\d{4}$/.test(schoolYear)) {
       setError("All fields marked with * are required.");
+      // Take the student to the first field still missing.
+      const missingId = [
+        [!studentId.trim(), "signup-student-id"], [!lastName.trim(), "signup-lastName"],
+        [!firstName.trim(), "signup-firstName"], [!email.trim(), "signup-email"], [!password, "signup-password"],
+        [!course.trim(), "signup-course"], [!yearLevel, "signup-year"], [!semester, "signup-semester"],
+        [!/^\d{4}-\d{4}$/.test(schoolYear), "signup-school-year"],
+      ].find(([missing]) => missing)?.[1];
+      if (missingId) focusField(e.currentTarget, missingId);
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
+      focusField(e.currentTarget, "signup-email");
       return;
     }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      focusField(e.currentTarget, "signup-password");
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      focusField(e.currentTarget, "signup-confirm");
       return;
     }
 

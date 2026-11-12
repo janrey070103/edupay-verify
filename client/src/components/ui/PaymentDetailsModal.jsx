@@ -27,7 +27,10 @@ export default function PaymentDetailsModal({ isOpen, onClose, payment }) {
       <dl className="divide-y divide-gray-100">{details.map(([label, value]) =>
         <div key={label} className="flex justify-between gap-4 py-2 text-sm"><dt className="text-gray-500">{label}</dt>
           <dd className="text-right font-semibold text-gray-800">{value || "—"}</dd></div>)}</dl>
-      {payment.status === "Rejected" && payment.remarks && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700"><strong>Rejection remarks:</strong> {payment.remarks}</p>}
+      <section className={`rounded-lg p-3 text-sm ${payment.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-800"}`}>
+        <h3 className="font-semibold">Remarks</h3>
+        <p className="mt-1 whitespace-pre-wrap break-words">{payment.remarks?.trim() || "No remarks provided."}</p>
+      </section>
       <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-gray-200 px-4 text-sm font-bold">Close</button>
     </div>
   </Modal>;
