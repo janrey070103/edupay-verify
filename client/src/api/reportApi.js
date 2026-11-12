@@ -1,21 +1,11 @@
 import API from "./client";
 
-export const getAllPayments = async () => {
-  const res = await API.get("/reports/payments");
+export const getPaymentsReport = async (params = {}) => {
+  const res = await API.get("/reports/payments", { params });
   return res.data;
 };
 
-export const getApprovedPayments = async () => {
-  const res = await API.get("/reports/approved");
-  return res.data;
-};
-
-export const getRejectedPayments = async () => {
-  const res = await API.get("/reports/rejected");
-  return res.data;
-};
-
-export const getFullyPaidStudents = async () => {
-  const res = await API.get("/reports/fullypaid");
+export const getReportSummary = async (params = {}) => {
+  const res = await API.get("/reports/summary", { params });
   return res.data;
 };

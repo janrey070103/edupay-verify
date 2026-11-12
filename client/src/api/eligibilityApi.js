@@ -15,15 +15,9 @@ export const getStudentPermits = async (studentId) => {
   return res.data;
 };
 
-export const scanExamPermit = async (token) => {
-  const res = await API.post("/qr/scan", { token });
+// Verify a permit for one specific exam (subject) the teacher is proctoring.
+export const scanExamPermit = async (token, examId) => {
+  const res = await API.post("/qr/scan", { token, examId });
   return res.data;
 };
-
-export const decideExamPermit = async (permitId, decision, remarks) => {
-  const res = await API.put(`/qr/${permitId}/proctor-decision`, {
-    decision,
-    remarks,
-  });
-  return res.data;
-};
+export const getMyLedger = async () => (await API.get("/eligibility/me/ledger")).data;

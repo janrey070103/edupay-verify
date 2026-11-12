@@ -48,6 +48,13 @@ const examSchema = new mongoose.Schema(
       required: false,
     },
 
+    // Course code from the catalogue; decides which department's Admins manage
+    // the exam. Older exams have none and are shown to every Admin until set.
+    course: {
+      type: String,
+      required: false,
+    },
+
     courseYear: {
       type: Number,
       required: false,
@@ -96,5 +103,6 @@ examSchema.index({ examDate: 1, examType: 1 });
 examSchema.index({ proctorId: 1 });
 examSchema.index({ subjectCode: 1 });
 examSchema.index({ courseYear: 1, courseSection: 1 });
+examSchema.index({ course: 1, examDate: 1 });
 
 module.exports = mongoose.model("Exam", examSchema);

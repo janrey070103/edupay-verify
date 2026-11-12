@@ -9,11 +9,13 @@ import {
   IconAlertCircle,
   IconLoader,
   IconUser,
-  IconBook,
+
   IconIdCard,
   IconCheckCircle,
 } from "../components/icons/Icons";
 import { getDefaultRoute } from "../hooks/useAuth";
+import useCatalog from "../hooks/useCatalog";
+import CourseSelect from "../components/ui/CourseSelect";
 
 const REMEMBER_KEY = "edupay_remember_email";
 
@@ -43,10 +45,15 @@ const Login = () => {
 
   // Sign-up-only
   const [studentId, setStudentId] = useState("");
-  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [course, setCourse] = useState("");
+  const { departments, activeCourses, loading: catalogLoading } = useCatalog();
   const [yearLevel, setYearLevel] = useState("");
+  const [semester, setSemester] = useState("");
+  const [schoolYear, setSchoolYear] = useState("");
 
   useEffect(() => {
     const savedEmail = localStorage.getItem(REMEMBER_KEY);
@@ -64,9 +71,13 @@ const Login = () => {
     setPassword("");
     setConfirmPassword("");
     setStudentId("");
-    setName("");
+    setLastName("");
+    setFirstName("");
+    setMiddleName("");
     setCourse("");
     setYearLevel("");
+    setSemester("");
+    setSchoolYear("");
     setShowPassword(false);
     setShowConfirmPassword(false);
   };
@@ -117,7 +128,8 @@ const Login = () => {
     e.preventDefault();
     setError("");
 
-    if (!studentId.trim() || !name.trim() || !email.trim() || !password) {
+    if (!studentId.trim() || !lastName.trim() || !firstName.trim() || !email.trim() || !password ||
+        !course.trim() || !yearLevel || !semester || !/^\d{4}-\d{4}$/.test(schoolYear)) {
       setError("All fields marked with * are required.");
       return;
     }
@@ -142,11 +154,15 @@ const Login = () => {
     try {
       const res = await API.post("/auth/register", {
         studentId: studentId.trim(),
-        name: name.trim(),
+        lastName: lastName.trim(),
+        firstName: firstName.trim(),
+        middleName: middleName.trim(),
         email: email.trim(),
         password,
         course: course || undefined,
         yearLevel: yearLevel ? Number(yearLevel) : undefined,
+        semester,
+        schoolYear,
       });
 
       // Registration no longer auto-logs in — show pending message
@@ -192,9 +208,9 @@ const Login = () => {
         aria-hidden="true"
       />
 
-      <div className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_20px_50px_rgba(0,0,0,0.1)] md:min-h-[600px] md:flex-row">
+      <div className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_20px_50px_rgba(0,0,0,0.1)] md:min-h-150 md:flex-row">
         {/* ── Left panel ── */}
-        <div className="slide-in-left relative flex w-full flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-700 to-blue-600 p-8 text-white sm:p-12 md:w-1/2 md:p-12">
+        <div className="slide-in-left relative flex w-full flex-col justify-between overflow-hidden bg-linear-to-br from-blue-700 to-blue-600 p-8 text-white sm:p-12 md:w-1/2 md:p-12">
           <div
             className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/5"
             aria-hidden="true"
@@ -429,27 +445,59 @@ const Login = () => {
                   </div>
                 </div>
 
-                {/* Full Name */}
+                {/* Name: last name first */}
                 <div>
                   <label
-                    htmlFor="signup-name"
+                    htmlFor="signup-lastName"
                     className="mb-1.5 block text-sm font-medium text-gray-700"
                   >
-                    Full Name <span className="text-red-500">*</span>
+                    Last Name <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                       <IconUser />
                     </span>
                     <input
-                      id="signup-name"
+                      id="signup-lastName"
                       type="text"
-                      autoComplete="name"
-                      placeholder="Juan Dela Cruz"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="family-name"
+                      placeholder="Dela Cruz"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="signup-firstName" className="mb-1.5 block text-sm font-medium text-gray-700">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="signup-firstName"
+                      type="text"
+                      autoComplete="given-name"
+                      placeholder="Juan"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      disabled={loading}
+                      className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="signup-middleName" className="mb-1.5 block text-sm font-medium text-gray-700">
+                      Middle Name
+                    </label>
+                    <input
+                      id="signup-middleName"
+                      type="text"
+                      autoComplete="additional-name"
+                      placeholder="Optional"
+                      value={middleName}
+                      onChange={(e) => setMiddleName(e.target.value)}
+                      disabled={loading}
+                      className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -545,30 +593,18 @@ const Login = () => {
                   </div>
                 </div>
 
-                {/* Course + Year Level side by side */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="signup-course"
-                      className="mb-1.5 block text-sm font-medium text-gray-700"
-                    >
-                      Course
-                    </label>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <IconBook />
-                      </span>
-                      <input
-                        id="signup-course"
-                        type="text"
-                        placeholder="e.g. BSIT"
-                        value={course}
-                        onChange={(e) => setCourse(e.target.value)}
-                        disabled={loading}
-                        className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
-                      />
-                    </div>
-                  </div>
+                {/* Course (official list) */}
+                <CourseSelect
+                  idPrefix="signup"
+                  courses={activeCourses}
+                  departments={departments}
+                  course={course}
+                  disabled={loading || catalogLoading}
+                  onChange={setCourse}
+                  className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-8 text-sm font-medium text-gray-900 shadow-sm outline-none transition focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                />
+
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label
                       htmlFor="signup-year"
@@ -591,6 +627,18 @@ const Login = () => {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div><label htmlFor="signup-semester" className="mb-1.5 block text-sm font-medium text-gray-700">Semester *</label>
+                    <select id="signup-semester" value={semester} onChange={(e) => setSemester(e.target.value)}
+                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm">
+                      <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+                    </select></div>
+                  <div><label htmlFor="signup-school-year" className="mb-1.5 block text-sm font-medium text-gray-700">School year *</label>
+                    <input id="signup-school-year" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)}
+                      placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}"
+                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm" /></div>
                 </div>
 
                 <button

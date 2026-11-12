@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getExamScheduleReport } from "../api/examApi";
 import { useToast } from "../context/ToastContext";
-import PageHeader from "../components/ui/PageHeader";
+import DataTable from "../components/ui/DataTable";
 import { IconLoader, IconFile } from "../components/icons/Icons";
 
 const MONTHS = [
@@ -10,6 +10,63 @@ const MONTHS = [
 ];
 
 const EXAM_TYPES = ["Prelim", "Midterm", "PreFinal", "Final"];
+
+const CELL = "px-6 py-4 text-sm text-gray-600";
+
+const courseLabel = (exam) => {
+  if (exam.courseYear && exam.courseSection) return `Year ${exam.courseYear} - Section ${exam.courseSection}`;
+  if (exam.courseYear) return `Year ${exam.courseYear}`;
+  if (exam.courseSection) return `Section ${exam.courseSection}`;
+  return "—";
+};
+
+// Desktop/print: table columns. Mobile: bento card (subject as title, time as badge).
+const COLUMNS = [
+  {
+    key: "course",
+    header: "Course Year & Section",
+    priority: "meta",
+    cellClass: CELL,
+    render: courseLabel,
+  },
+  {
+    key: "subject",
+    header: "Subject Code and Title",
+    priority: "primary",
+    cellClass: CELL,
+    render: (exam) => (
+      <>
+        <strong className="block font-bold text-gray-800">{exam.subjectCode}</strong>
+        <span className="text-sm text-gray-600">{exam.subject}</span>
+      </>
+    ),
+  },
+  {
+    key: "schedule",
+    header: "Schedule",
+    priority: "badge",
+    cellClass: CELL,
+    render: (exam) => (
+      <span className="whitespace-nowrap rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-sti-blue md:bg-transparent md:p-0 md:text-sm md:font-normal md:text-gray-600 print:bg-transparent print:p-0">
+        {exam.startTime && exam.endTime ? `${exam.startTime} - ${exam.endTime}` : exam.schedule || "—"}
+      </span>
+    ),
+  },
+  {
+    key: "room",
+    header: "Room",
+    priority: "meta",
+    cellClass: CELL,
+    render: (exam) => exam.room || "—",
+  },
+  {
+    key: "proctor",
+    header: "Proctor",
+    priority: "detail",
+    cellClass: CELL,
+    render: (exam) => exam.proctorName || "Pending Assignment",
+  },
+];
 
 const ExamScheduleReport = () => {
   const { showToast } = useToast();
@@ -157,7 +214,7 @@ const ExamScheduleReport = () => {
       </div>
 
       {/* Report Content */}
-      <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-6">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-gray-600">
             <IconLoader className="h-5 w-5 animate-spin" />
@@ -171,48 +228,14 @@ const ExamScheduleReport = () => {
           <div className="space-y-8">
             {Object.entries(exams).map(([dateKey, examsList]) => (
               <div key={dateKey} className="page-break">
-                <div className="section-title text-lg font-black text-gray-800 mb-4 px-6 pt-4">{dateKey}</div>
+                <div className="section-title mb-4 pt-2 text-base font-black text-gray-800 sm:px-2 sm:text-lg">{dateKey}</div>
 
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-100 text-left">
-                    <thead className="bg-gray-50/80">
-                      <tr>
-                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap" style={{ width: "15%" }}>Course Year & Section</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap" style={{ width: "25%" }}>Subject Code and Title</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap" style={{ width: "20%" }}>Schedule</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap" style={{ width: "15%" }}>Room</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap" style={{ width: "25%" }}>Proctor</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {examsList.map((exam, idx) => (
-                        <tr key={exam._id || idx} className="hover:bg-blue-50/30 transition-colors group">
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {exam.courseYear && exam.courseSection
-                              ? `Year ${exam.courseYear} - Section ${exam.courseSection}`
-                              : exam.courseYear
-                              ? `Year ${exam.courseYear}`
-                              : exam.courseSection
-                              ? `Section ${exam.courseSection}`
-                              : "—"}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            <strong className="text-gray-800 font-bold">{exam.subjectCode}</strong>
-                            <br />
-                            {exam.subject}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {exam.startTime && exam.endTime
-                              ? `${exam.startTime} - ${exam.endTime}`
-                              : exam.schedule || "—"}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{exam.room || "—"}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{exam.proctorName || "Pending Assignment"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  columns={COLUMNS}
+                  rows={examsList}
+                  rowKey={(exam) => exam._id}
+                  className="shadow-none"
+                />
               </div>
             ))}
           </div>

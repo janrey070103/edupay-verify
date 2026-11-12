@@ -28,5 +28,6 @@ export const getDefaultRoute = (role) => {
   if (role === "student") return "/student";
   if (role === "teacher") return "/teacher";
   if (role === "super_admin") return "/super-admin";
+  if (role === "admin") return "/admin";
   return "/cashier";
 };

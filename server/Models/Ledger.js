@@ -47,6 +47,8 @@ new mongoose.Schema({
   },
 
 });
+ledgerSchema.index({ studentId: 1 }, { unique: true, name: "uniq_ledger_student_id",
+  partialFilterExpression: { studentId: { $type: "string" } } });
 
 module.exports =
 mongoose.model(

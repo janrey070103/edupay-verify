@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  getAllPayments,
-  getApprovedPayments,
-  getRejectedPayments,
-  getFullyPaidStudents,
-} from "../api/reportApi";
-import PageHeader from "../components/ui/PageHeader";
+import { useCallback, useEffect, useState } from "react";
+import RegisteredUsersReport from "./RegisteredUsersReport";
+import SortSelect from "../components/ui/SortSelect";
+import PaidViaSelect from "../components/ui/PaidViaSelect";
+import AdminReports from "./AdminReports";
+import { getPaymentsReport, getReportSummary } from "../api/reportApi";
+import DataTable from "../components/ui/DataTable";
+import Pagination from "../components/ui/Pagination";
 import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
-import Skeleton from "../components/ui/Skeleton";
+import usePaginated from "../hooks/usePaginated";
 import {
   IconBarChart,
   IconCheckCircle,
@@ -20,6 +20,7 @@ import {
 } from "../components/icons/Icons";
 
 const FILTERS = ["All", "Approved", "Rejected"];
+const EMPTY_SUMMARY = { total: 0, approved: 0, rejected: 0, fullyPaid: 0 };
 
 const formatDate = (dateStr) => {
   if (!dateStr) return "—";
@@ -31,89 +32,133 @@ const formatDate = (dateStr) => {
 };
 
 const Reports = () => {
-  const [allPayments, setAllPayments] = useState([]);
-  const [approved, setApproved] = useState([]);
-  const [rejected, setRejected] = useState([]);
-  const [fullyPaid, setFullyPaid] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [filter, setFilter] = useState("All");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [appliedStart, setAppliedStart] = useState("");
-  const [appliedEnd, setAppliedEnd] = useState("");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const {
+    rows,
+    meta,
+    loading,
+    fetching,
+    error: listError,
+    filters,
+    setFilter: setQueryFilter,
+    setPage,
+    setLimit,
+    sort,
+    order,
+    setSorting,
+    setDateRange,
+  } = usePaginated(
+    ({ status, from, to, ...params }) =>
+      getPaymentsReport({
+        ...params,
+        ...(status ? { status } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+      }),
+    { initialLimit: 25, initialFilters: { status: "", from: "", to: "", channel: "" } }
+  );
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
     try {
-      const [all, app, rej, fp] = await Promise.all([
-        getAllPayments(),
-        getApprovedPayments(),
-        getRejectedPayments(),
-        getFullyPaidStudents(),
-      ]);
-      setAllPayments(all);
-      setApproved(app);
-      setRejected(rej);
-      setFullyPaid(fp);
+      const data = await getReportSummary({
+        ...(filters.from ? { from: filters.from } : {}),
+        ...(filters.to ? { to: filters.to } : {}),
+        ...(filters.channel ? { channel: filters.channel } : {}),
+      });
+      setSummary({ ...EMPTY_SUMMARY, ...data });
       setError("");
     } catch {
-      setError("Could not load report data.");
+      setError("Could not load report totals.");
     } finally {
-      setLoading(false);
+      setSummaryLoading(false);
     }
-  }, []);
+  }, [filters.from, filters.to, filters.channel]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    loadSummary();
+  }, [loadSummary]);
 
   const handleFilter = () => {
-    setAppliedStart(startDate);
-    setAppliedEnd(endDate);
+    setDateRange({ from: startDate, to: endDate });
   };
 
   const clearFilter = () => {
     setStartDate("");
     setEndDate("");
-    setAppliedStart("");
-    setAppliedEnd("");
+    setDateRange({ from: "", to: "" });
   };
 
-  /* filter + date range logic */
-  const baseList = useMemo(() => {
-    if (filter === "Approved") return approved;
-    if (filter === "Rejected") return rejected;
-    return allPayments;
-  }, [filter, allPayments, approved, rejected]);
+  const handleTab = (value) => {
+    setFilter(value);
+    setQueryFilter("status", value === "All" ? "" : value);
+  };
 
-  const filtered = useMemo(() => {
-    let list = baseList;
-    if (appliedStart) {
-      const start = new Date(appliedStart);
-      start.setHours(0, 0, 0, 0);
-      list = list.filter((p) => new Date(p.createdAt) >= start);
-    }
-    if (appliedEnd) {
-      const end = new Date(appliedEnd);
-      end.setHours(23, 59, 59, 999);
-      list = list.filter((p) => new Date(p.createdAt) <= end);
-    }
-    return list;
-  }, [baseList, appliedStart, appliedEnd]);
+  const columns = [
+    {
+      key: "studentName",
+      header: "Student",
+      priority: "primary",
+      render: (payment) => (
+        <>
+          <p className="text-sm font-semibold text-gray-800 group-hover:text-sti-blue">{payment.studentName || "—"}</p>
+          <p className="text-xs text-gray-400">{payment.studentId}</p>
+        </>
+      ),
+    },
+    {
+      key: "invoiceNumber",
+      header: "Invoice",
+      priority: "meta",
+      render: (payment) => (payment.invoiceNumber ? `#${payment.invoiceNumber}` : "—"),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      priority: "meta",
+      render: (payment) => (payment.amount ? `₱${payment.amount}` : "—"),
+    },
+    {
+      key: "paymentDescription",
+      header: "Description",
+      priority: "detail",
+      render: (payment) => payment.paymentDescription || "—",
+    },
+    {
+      key: "createdAt",
+      header: "Date",
+      priority: "meta",
+      render: (payment) => formatDate(payment.createdAt),
+    },
+    {
+      key: "status",
+      header: "Status",
+      priority: "badge",
+      render: (payment) => <StatusBadge status={payment.status} />,
+    },
+  ];
+
+  const message = error || listError;
 
   return (
     <div>
-
-      {error && (
+      {message && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {message}
         </div>
       )}
 
       {/* Date range filter bar */}
       <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+        <SortSelect sort={sort} order={order} onChange={setSorting} label="Sort by date submitted" />
+        <PaidViaSelect value={filters.channel} onChange={(value) => setQueryFilter("channel", value)} />
         <label className="text-xs font-bold uppercase tracking-widest text-gray-400">
           Date Range
         </label>
@@ -140,7 +185,7 @@ const Reports = () => {
           <IconFilter className="h-4 w-4" />
           Filter
         </button>
-        {(appliedStart || appliedEnd) && (
+        {(filters.from || filters.to) && (
           <button
             type="button"
             onClick={clearFilter}
@@ -151,157 +196,99 @@ const Reports = () => {
         )}
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards (server summary, not page-local counts) */}
       <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Payments"
-          value={allPayments.length}
+          value={summary.total}
           valueClassName="text-sti-blue"
           variant="icon"
           icon={IconBarChart}
           iconClassName="bg-blue-50 text-sti-blue"
           subLabel="All records"
           subLabelClassName="bg-blue-50 text-sti-blue"
-          loading={loading}
+          loading={summaryLoading}
         />
         <StatCard
           label="Approved"
-          value={approved.length}
+          value={summary.approved}
           valueClassName="text-green-600"
           variant="icon"
           icon={IconCheckCircle}
           iconClassName="bg-green-50 text-green-600"
           subLabel="Verified"
           subLabelClassName="bg-green-50 text-green-600"
-          loading={loading}
+          loading={summaryLoading}
         />
         <StatCard
           label="Rejected"
-          value={rejected.length}
+          value={summary.rejected}
           valueClassName="text-red-600"
           variant="icon"
           icon={IconXCircle}
           iconClassName="bg-red-50 text-red-600"
           subLabel="Declined"
           subLabelClassName="bg-red-50 text-red-600"
-          loading={loading}
+          loading={summaryLoading}
         />
         <StatCard
           label="Fully Paid"
-          value={fullyPaid.length}
+          value={summary.fullyPaid}
           valueClassName="text-sti-blue"
           variant="icon"
           icon={IconUsers}
           iconClassName="bg-sti-gold/10 text-sti-blue"
           subLabel="Students cleared"
           subLabelClassName="bg-sti-gold/10 text-sti-blue"
-          loading={loading}
+          loading={summaryLoading}
         />
       </div>
 
       {/* Filter tabs */}
       <div className="mb-6 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+        {FILTERS.map((value) => (
           <button
-            key={f}
+            key={value}
             type="button"
-            onClick={() => setFilter(f)}
+            onClick={() => handleTab(value)}
             className={[
               "rounded-lg min-h-11 px-4 py-2.5 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-sti-blue/20",
-              filter === f
+              filter === value
                 ? "bg-sti-blue text-white shadow-[0_4px_14px_rgba(0,61,165,0.35)]"
                 : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
             ].join(" ")}
           >
-            {f}
+            {value}
           </button>
         ))}
       </div>
 
-      {/* Payment table */}
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                {[
-                  "Student",
-                  "Invoice",
-                  "Amount",
-                  "Description",
-                  "Date",
-                  "Status",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <Skeleton variant="table-row" count={5} />
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState
-                      icon={IconInbox}
-                      title="No payments found"
-                      description="No records match the selected filters."
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="group transition-colors hover:bg-blue-50/30"
-                  >
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <p className="text-sm font-semibold text-gray-800 group-hover:text-sti-blue">
-                        {p.studentName || "—"}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {p.studentId}
-                      </p>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                      {p.invoiceNumber ? `#${p.invoiceNumber}` : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">
-                      {p.amount ? `₱${p.amount}` : "—"}
-                    </td>
-                    <td className="max-w-[200px] truncate px-6 py-4 text-sm text-gray-500">
-                      {p.paymentDescription || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                      {formatDate(p.createdAt)}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <StatusBadge status={p.status} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        fetching={fetching}
+        skeletonRows={5}
+        empty={
+          <EmptyState
+            icon={IconInbox}
+            title="No payments found"
+            description="No records match the selected filters."
+          />
+        }
+      />
 
-        {/* Footer summary */}
-        {!loading && filtered.length > 0 && (
-          <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-3">
-            <p className="text-xs font-semibold text-gray-400">
-              Showing {filtered.length} record
-              {filtered.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-        )}
-      </div>
+      <Pagination meta={meta} onPageChange={setPage} onLimitChange={setLimit} fetching={fetching} />
     </div>
   );
 };
 
-export default Reports;
+// Super Admin: registered users. Admin: department exam/eligibility reports
+// (no peso amounts). Cashier: payment reports.
+const RoleReports = () => {
+  const role = localStorage.getItem("role");
+  if (role === "super_admin") return <RegisteredUsersReport />;
+  if (role === "admin") return <AdminReports />;
+  return <Reports />;
+};
+export default RoleReports;

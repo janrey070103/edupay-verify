@@ -8,12 +8,16 @@ import {
   deleteExam,
   updateExam,
 } from "../api/examApi";
-import { getAllUsers } from "../api/userManagementApi";
+import { listTeachers } from "../api/userManagementApi";
+import { publishTermSchedule, getTermSchedules } from "../api/termScheduleApi";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/ui/PageHeader";
 import Drawer from "../components/ui/Drawer";
 import Skeleton from "../components/ui/Skeleton";
 import { IconLoader, IconX } from "../components/icons/Icons";
+import { useMyCourses } from "../hooks/useCatalog";
+import ExamTimeInput from "../components/ui/ExamTimeInput";
+import { examTimeProblem } from "../utils/examTime";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -41,12 +45,29 @@ const formatDate = (dateStr) => {
 
 const ExamSchedule = () => {
   const { showToast } = useToast();
+  const { myActiveCourses } = useMyCourses();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [exams, setExams] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [published, setPublished] = useState([]);
+  const [publishForm, setPublishForm] = useState({ examDate: "", semester: "", schoolYear: "", examType: "" });
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
+
+  useEffect(() => { getTermSchedules().then(setPublished).catch(() => {}); }, []);
+  const handlePublish = async (event) => {
+    event.preventDefault(); setPublishMessage(""); setPublishLoading(true);
+    try {
+      await publishTermSchedule(publishForm);
+      setPublished(await getTermSchedules());
+      setPublishMessage("Term published for your department. Your department's students have been notified.");
+      showToast("Exam schedule published.", "success");
+    } catch (err) { showToast(err.response?.data?.message || "Could not publish schedule.", "error"); }
+    finally { setPublishLoading(false); }
+  };
 
   // Selected date and drawer state
   const [selectedDate, setSelectedDate] = useState(null);
@@ -56,12 +77,14 @@ const ExamSchedule = () => {
 
   // Form state
   const [formData, setFormData] = useState({
+    course: "",
     examType: "Prelim",
     subject: "",
     subjectCode: "",
     schedule: "",
     startTime: "",
     endTime: "",
+    timeMode: "picker",
     room: "",
     capacity: "",
     courseYear: "",
@@ -79,11 +102,10 @@ const ExamSchedule = () => {
     try {
       const [examsData, teachersData] = await Promise.all([
         getExamsForMonth(year, month + 1),
-        getAllUsers(),
+        listTeachers(),
       ]);
       setExams(examsData);
-      const teachersList = teachersData.filter((u) => u.role === "teacher");
-      setTeachers(teachersList);
+      setTeachers(Array.isArray(teachersData) ? teachersData : []);
     } catch (err) {
       showToast("Failed to load data.", "error");
     } finally {
@@ -126,12 +148,14 @@ const ExamSchedule = () => {
     setSelectedDate(date);
     setDrawerMode("add");
     setFormData({
+      course: "",
       examType: "Prelim",
       subject: "",
       subjectCode: "",
       schedule: "",
       startTime: "",
       endTime: "",
+      timeMode: "picker",
       room: "",
       capacity: "",
       courseYear: "",
@@ -146,12 +170,14 @@ const ExamSchedule = () => {
     setDrawerMode("edit");
     setSelectedExam(exam);
     setFormData({
+      course: exam.course || "",
       examType: exam.examType,
       subject: exam.subject,
       subjectCode: exam.subjectCode,
       schedule: exam.schedule,
       startTime: exam.startTime || "",
       endTime: exam.endTime || "",
+      timeMode: exam.startTime && exam.endTime ? "picker" : "manual",
       room: exam.room || "",
       capacity: exam.capacity || "",
       courseYear: exam.courseYear || "",
@@ -162,10 +188,12 @@ const ExamSchedule = () => {
   };
 
   const handleAddExam = async () => {
-    if (!formData.subject || !formData.subjectCode || !formData.schedule) {
-      showToast("Please fill in all required fields.", "error");
+    if (!formData.course || !formData.subject || !formData.subjectCode) {
+      showToast("Please fill in all required fields, including the course.", "error");
       return;
     }
+    const timeProblem = examTimeProblem(formData);
+    if (timeProblem) { showToast(timeProblem, "error"); return; }
 
     setActionLoading(true);
     try {
@@ -185,10 +213,12 @@ const ExamSchedule = () => {
   };
 
   const handleUpdateExam = async () => {
-    if (!formData.subject || !formData.subjectCode || !formData.schedule) {
-      showToast("Please fill in all required fields.", "error");
+    if (!formData.course || !formData.subject || !formData.subjectCode) {
+      showToast("Please fill in all required fields, including the course.", "error");
       return;
     }
+    const timeProblem = examTimeProblem(formData);
+    if (timeProblem) { showToast(timeProblem, "error"); return; }
 
     setActionLoading(true);
     try {
@@ -273,6 +303,47 @@ const ExamSchedule = () => {
 
   return (
     <div>
+      <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-800">Publish examination term</h2>
+        <p className="mt-1 text-sm text-gray-500">Sets your department's exam date for a term. Other departments set their own dates.</p>
+        <p className="mt-1 text-sm text-gray-500">This publishes a term date for students. Subject exams and proctor assignments below remain separate.</p>
+        <form onSubmit={handlePublish} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm font-semibold text-gray-700">Exam date
+            <input type="date" required value={publishForm.examDate} onChange={(e) => setPublishForm({ ...publishForm, examDate: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
+          <label className="text-sm font-semibold text-gray-700">Semester
+            <select required value={publishForm.semester} onChange={(e) => setPublishForm({ ...publishForm, semester: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
+              <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+            </select></label>
+          <label className="text-sm font-semibold text-gray-700">School year
+            <input type="text" required pattern="[0-9]{4}-[0-9]{4}" placeholder="2026-2027" value={publishForm.schoolYear}
+              onChange={(e) => setPublishForm({ ...publishForm, schoolYear: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3" /></label>
+          <label className="text-sm font-semibold text-gray-700">Exam term
+            <select required value={publishForm.examType} onChange={(e) => setPublishForm({ ...publishForm, examType: e.target.value })}
+              className="mt-1 min-h-11 w-full rounded-lg border border-gray-200 px-3">
+              <option value="">Select term</option>{EXAM_TYPES.map((term) => <option key={term}>{term}</option>)}
+            </select></label>
+          <button type="submit" disabled={publishLoading} aria-busy={publishLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-sti-gold px-5 font-black text-sti-blue disabled:opacity-50 sm:col-span-2 lg:col-span-4 lg:justify-self-start">
+            {publishLoading && <IconLoader className="h-4 w-4" />}
+            {publishLoading ? "Publishing…" : "Publish schedule"}</button>
+        </form>
+        {publishMessage && <p role="status" className="mt-3 text-sm font-semibold text-green-700">{publishMessage}</p>}
+        <h3 className="mt-6 text-sm font-bold text-gray-700">Published terms</h3>
+        {published.length === 0 ? <p className="mt-2 text-sm text-gray-500">No terms published yet.</p> :
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">{published.map((item) => <li key={item._id} className="rounded-lg border border-gray-100 p-3 text-sm">
+            <strong>{item.examType}</strong> · {item.semester} · {item.schoolYear} · {formatDate(item.examDate)}
+            {item.schoolWide ? (
+              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500"
+                title="Published before departments existed. Applies to your students until your department publishes its own date for this term.">
+                School-wide
+              </span>
+            ) : (
+              <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-sti-blue">{item.department}</span>
+            )}
+          </li>)}</ul>}
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-4 lg:gap-8">
         {/* Calendar */}
@@ -319,7 +390,7 @@ const ExamSchedule = () => {
                     key={idx}
                     onClick={() => day && handleDateClick(day)}
                     disabled={!day}
-                    className={`bg-white p-2 min-h-[100px] border-r border-b border-gray-100 text-left transition-colors relative group border-[0.5px] border-transparent hover:border-blue-100 ${
+                    className={`bg-white p-2 min-h-25 border-r border-b text-left transition-colors relative group border-[0.5px] border-transparent hover:border-blue-100 ${
                       !day
                         ? "bg-gray-50/50 cursor-default"
                         : "hover:bg-blue-50/30 cursor-pointer"
@@ -380,7 +451,12 @@ const ExamSchedule = () => {
                     onClick={() => handleEditExam(exam)}
                     className="w-full text-left rounded-lg border border-gray-200 p-3 hover:bg-blue-50 transition"
                   >
-                    <p className="font-semibold text-sm text-gray-800">{exam.subjectCode}</p>
+                    <p className="font-semibold text-sm text-gray-800">
+                      {exam.subjectCode}
+                      <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold ${exam.course ? "bg-blue-50 text-sti-blue" : "bg-amber-50 text-amber-700"}`}>
+                        {exam.course || "No course"}
+                      </span>
+                    </p>
                     <p className="text-xs text-gray-600">{exam.schedule}</p>
                     {exam.proctorName && (
                       <p className="text-xs text-blue-600 mt-1 font-semibold">Proctor: {exam.proctorName}</p>
@@ -450,18 +526,9 @@ const ExamSchedule = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Schedule <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.schedule}
-              onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-              placeholder="e.g., 9:00 AM - 11:00 AM"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
+          {/* Picked (start/end) or typed manually; the schedule text is what everyone sees. */}
+          <ExamTimeInput key={`${drawerMode}-${selectedExam?._id || "new"}-${showDrawer}`} value={formData}
+            onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))} />
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -487,6 +554,29 @@ const ExamSchedule = () => {
               placeholder="e.g., 50"
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
+          </div>
+
+          <div>
+            <label htmlFor="exam-course" className="block text-sm font-semibold text-gray-700 mb-2">
+              Course <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="exam-course"
+              value={formData.course}
+              onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="">Select course...</option>
+              {formData.course && !myActiveCourses.some((item) => item.code === formData.course) && (
+                <option value={formData.course} disabled>{formData.course} (not in your department)</option>
+              )}
+              {myActiveCourses.map((item) => (
+                <option key={item.code} value={item.code}>{item.code} - {item.name}</option>
+              ))}
+            </select>
+            {drawerMode === "edit" && !selectedExam?.course && (
+              <p className="mt-1 text-xs text-amber-700">This exam was created before courses were required. Choose its course.</p>
+            )}
           </div>
 
           <div>
@@ -517,31 +607,6 @@ const ExamSchedule = () => {
               placeholder="e.g., A, B, or C"
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Start Time (Optional)
-              </label>
-              <input
-                type="time"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                End Time (Optional)
-              </label>
-              <input
-                type="time"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
           </div>
 
           {drawerMode === "edit" && selectedExam && (

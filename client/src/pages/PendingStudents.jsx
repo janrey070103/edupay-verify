@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getPendingStudents,
   verifyStudent,
   rejectStudent,
 } from "../api/userManagementApi";
 import { useToast } from "../context/ToastContext";
-import Skeleton from "../components/ui/Skeleton";
+import DataTable from "../components/ui/DataTable";
+import Pagination from "../components/ui/Pagination";
 import EmptyState from "../components/ui/EmptyState";
 import Drawer from "../components/ui/Drawer";
+import usePaginated from "../hooks/usePaginated";
+import useCatalog, { resolveCourse } from "../hooks/useCatalog";
+import SortSelect from "../components/ui/SortSelect";
+import DateRangeFilter from "../components/ui/DateRangeFilter";
 import {
   IconUsers,
   IconSearch,
@@ -17,48 +22,49 @@ import {
   IconAlertCircle,
   IconClock,
 } from "../components/icons/Icons";
+import { refreshNavBadges } from "../utils/navBadges";
+import StudentDetailsPanel from "../components/StudentDetailsPanel";
 
 const PendingStudents = () => {
   const { showToast } = useToast();
+  const { courses } = useCatalog();
 
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState("");
+  const [search, setSearch] = useState("");
 
-  // Rejection drawer state
   const [rejectDrawerOpen, setRejectDrawerOpen] = useState(false);
+  // Student shown in the read-only details panel (approve / reject from there too).
+  const [detailsStudent, setDetailsStudent] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
 
-  const fetchPending = useCallback(async () => {
-    try {
-      const data = await getPendingStudents();
-      setStudents(data);
-      setError("");
-    } catch {
-      setError("Could not load pending students.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    rows: students,
+    meta,
+    loading,
+    fetching,
+    error,
+    filters,
+    sort,
+    order,
+    setFilter,
+    setSorting,
+    setDateRange,
+    setPage,
+    setLimit,
+    refresh,
+  } = usePaginated(
+    ({ search: searchTerm, ...params }) =>
+      getPendingStudents(searchTerm ? { ...params, search: searchTerm } : params),
+    // Oldest first: students who have waited longest are verified first.
+    { initialLimit: 20, initialFilters: { search: "", from: "", to: "" }, initialSort: "createdAt", initialOrder: "asc" }
+  );
 
   useEffect(() => {
-    fetchPending();
-  }, [fetchPending]);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return students;
-    const q = search.toLowerCase();
-    return students.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.email.toLowerCase().includes(q) ||
-        (s.studentId || "").toLowerCase().includes(q)
-    );
-  }, [students, search]);
+    const timer = setTimeout(() => setFilter("search", search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search, setFilter]);
 
   const handleVerify = async (student) => {
     if (
@@ -66,18 +72,21 @@ const PendingStudents = () => {
         `Approve ${student.name} (${student.studentId})? They will be able to log in.`
       )
     )
-      return;
+      return false;
 
     setActionLoading(student._id);
     try {
       await verifyStudent(student._id);
       showToast(`${student.name} has been verified.`, "success");
-      await fetchPending();
+      refreshNavBadges();
+      await refresh();
+      return true;
     } catch (err) {
       showToast(
         err.response?.data?.message || "Failed to verify student.",
         "error"
       );
+      return false;
     } finally {
       setActionLoading("");
     }
@@ -99,7 +108,8 @@ const PendingStudents = () => {
       showToast(`${rejectTarget.name} has been rejected.`, "info");
       setRejectDrawerOpen(false);
       setRejectTarget(null);
-      await fetchPending();
+      refreshNavBadges();
+      await refresh();
     } catch (err) {
       showToast(
         err.response?.data?.message || "Failed to reject student.",
@@ -120,6 +130,74 @@ const PendingStudents = () => {
       minute: "2-digit",
     });
   };
+
+  const columns = [
+    {
+      key: "name",
+      header: "Name",
+      priority: "primary",
+      render: (student) => (
+        <>
+          <p className="text-sm font-semibold text-gray-800 group-hover:text-blue-600">{student.name}</p>
+          <p className="text-xs text-gray-400">{student.email}</p>
+        </>
+      ),
+    },
+    { key: "email", header: "Email", priority: "desktop", render: (student) => student.email },
+    { key: "studentId", header: "Student ID", priority: "meta", render: (student) => student.studentId || "—" },
+    { key: "course", header: "Course", priority: "meta", render: (student) => (
+      <span>
+        {resolveCourse(courses, student.course)?.code || student.course || "—"}
+        {student.course && resolveCourse(courses, student.course) && resolveCourse(courses, student.course).code !== student.course && (
+          <span className="ml-1.5 text-[10px] text-gray-400" title="Saved as the official code when verified">(typed: {student.course})</span>
+        )}
+      </span>
+    ) },
+    { key: "yearLevel", header: "Year", priority: "meta", render: (student) => student.yearLevel || "—" },
+    { key: "createdAt", header: "Registered", priority: "meta", render: (student) => formatDate(student.createdAt) },
+    {
+      key: "actions",
+      header: "Actions",
+      priority: "action",
+      render: (student) => (
+        <>
+          <button
+            type="button"
+            onClick={() => setDetailsStudent(student)}
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-blue-50 px-3 py-2.5 text-xs font-bold text-sti-blue transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
+            aria-label={`View details of ${student.name}`}
+          >
+            <IconUsers className="h-3.5 w-3.5" />
+            View details
+          </button>
+          <button
+            type="button"
+            onClick={() => handleVerify(student)}
+            disabled={actionLoading === student._id}
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-2.5 text-xs font-bold text-green-700 transition hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500/20 disabled:opacity-60"
+            aria-label={`Approve ${student.name}`}
+          >
+            {actionLoading === student._id ? (
+              <IconLoader className="h-3.5 w-3.5" />
+            ) : (
+              <IconCheckCircle className="h-3.5 w-3.5" />
+            )}
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={() => openRejectDrawer(student)}
+            disabled={actionLoading === student._id}
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-red-50 px-3 py-2.5 text-xs font-bold text-red-500 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60"
+            aria-label={`Reject ${student.name}`}
+          >
+            <IconXCircle className="h-3.5 w-3.5" />
+            Reject
+          </button>
+        </>
+      ),
+    },
+  ];
 
   const rejectFooter = (
     <div className="flex justify-end gap-3">
@@ -151,14 +229,13 @@ const PendingStudents = () => {
         </div>
       )}
 
-      {/* Header stats */}
       <div className="mb-6 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
           <IconClock className="h-5 w-5" />
         </div>
         <div>
           <p className="text-sm font-bold text-gray-800">
-            {loading ? "..." : students.length} Pending
+            {loading ? "…" : meta.total} Pending
           </p>
           <p className="text-xs text-gray-500">
             Student registrations awaiting verification
@@ -166,7 +243,6 @@ const PendingStudents = () => {
         </div>
       </div>
 
-      {/* Search bar */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:max-w-xs">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -181,122 +257,60 @@ const PendingStudents = () => {
             aria-label="Search pending students"
           />
         </div>
+        <SortSelect sort={sort} order={order} onChange={setSorting} label="Sort by registration date" />
+        <DateRangeFilter label="Registered" from={filters.from} to={filters.to} onChange={setDateRange} />
       </div>
 
-      {/* Students table */}
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                {[
-                  "Name",
-                  "Email",
-                  "Student ID",
-                  "Course",
-                  "Year",
-                  "Registered",
-                  "Actions",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <Skeleton variant="table-row" count={3} />
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7}>
-                    <EmptyState
-                      icon={IconUsers}
-                      title="No pending students"
-                      description={
-                        search.trim()
-                          ? "No pending students match your search."
-                          : "All student registrations have been processed."
-                      }
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((student) => (
-                  <tr
-                    key={student._id}
-                    className="group transition-colors hover:bg-blue-50/30"
-                  >
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <p className="text-sm font-semibold text-gray-800 group-hover:text-blue-600">
-                        {student.name}
-                      </p>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                      {student.email}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                      {student.studentId || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                      {student.course || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                      {student.yearLevel || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                      {formatDate(student.createdAt)}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleVerify(student)}
-                          disabled={actionLoading === student._id}
-                          className="inline-flex min-h-11 items-center gap-1 rounded-md bg-green-50 px-3 py-2.5 text-xs font-bold text-green-700 transition hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500/20 disabled:opacity-60"
-                          aria-label={`Approve ${student.name}`}
-                        >
-                          {actionLoading === student._id ? (
-                            <IconLoader className="h-3.5 w-3.5" />
-                          ) : (
-                            <IconCheckCircle className="h-3.5 w-3.5" />
-                          )}
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openRejectDrawer(student)}
-                          disabled={actionLoading === student._id}
-                          className="inline-flex min-h-11 items-center gap-1 rounded-md bg-red-50 px-3 py-2.5 text-xs font-bold text-red-500 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60"
-                          aria-label={`Reject ${student.name}`}
-                        >
-                          <IconXCircle className="h-3.5 w-3.5" />
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <DataTable
+        columns={columns}
+        rows={students}
+        loading={loading}
+        fetching={fetching}
+        skeletonRows={3}
+        empty={
+          <EmptyState
+            icon={IconUsers}
+            title="No pending students"
+            description={
+              search.trim()
+                ? "No pending students match your search."
+                : "All student registrations have been processed."
+            }
+          />
+        }
+      />
 
-        {/* Footer summary */}
-        {!loading && filtered.length > 0 && (
-          <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-3">
-            <p className="text-xs font-semibold text-gray-400">
-              Showing {filtered.length} pending student
-              {filtered.length !== 1 ? "s" : ""}
-            </p>
+      <Pagination meta={meta} onPageChange={setPage} onLimitChange={setLimit} fetching={fetching} />
+
+      <Drawer
+        open={Boolean(detailsStudent)}
+        onClose={() => actionLoading !== detailsStudent?._id && setDetailsStudent(null)}
+        title="Student details"
+        footer={detailsStudent && (
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => { const target = detailsStudent; setDetailsStudent(null); openRejectDrawer(target); }}
+              disabled={actionLoading === detailsStudent._id}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+            >
+              <IconXCircle className="h-4 w-4" /> Reject
+            </button>
+            <button
+              type="button"
+              onClick={async () => { if (await handleVerify(detailsStudent)) setDetailsStudent(null); }}
+              disabled={actionLoading === detailsStudent._id}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60"
+            >
+              {actionLoading === detailsStudent._id ? <IconLoader className="h-4 w-4" /> : <IconCheckCircle className="h-4 w-4" />}
+              Approve
+            </button>
           </div>
         )}
-      </div>
+      >
+        <StudentDetailsPanel student={detailsStudent} />
+      </Drawer>
 
-      {/* Rejection Reason Drawer */}
       <Drawer
         open={rejectDrawerOpen}
         onClose={() => !rejectLoading && setRejectDrawerOpen(false)}

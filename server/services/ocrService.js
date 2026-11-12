@@ -1,45 +1,11 @@
-const Tesseract =
-require(
-"tesseract.js"
-);
+// Compatibility wrapper. Receipt reading now lives in services/ocr/
+// (ocrEngine: shared Tesseract worker, imagePrep: photo preparation,
+// receiptParser: field rules, receiptAnalyzer: confirm what the student typed).
+const { recognize } = require("./ocr/ocrEngine");
+const { extractAmountDetails } = require("./ocr/receiptParser");
 
-const extractText =
-async (imageUrl) => {
+const extractText = async (image) => (await recognize(image)).text;
 
- const result =
- await Tesseract.recognize(
- imageUrl,
- "eng"
- );
-
- return result.data.text;
-
-};
-
-const extractAmount = (text) => {
- const normalizedText = text.replace(/[\r\n]+/g, " ");
- const amountPatterns = [
-  /(?:AMOUNT\s*PAID|PAID\s*AMOUNT|PAYMENT\s*AMOUNT)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-  /(?:TOTAL\s*AMOUNT\s*DUE|AMOUNT\s*DUE|TOTAL\s*PAID|GRAND\s*TOTAL|TOTAL\s*AMOUNT|TOTAL)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-  /(?:AMOUNT|PAYABLE)\s*[:#-]?\s*(?:PHP|P\.?H\.?P\.?|₱|USD|\$)?\s*([\d,]+(?:\.\d{1,2})?)/i,
- ];
-
- for (const amountPattern of amountPatterns) {
-  const amountMatch = normalizedText.match(amountPattern);
-
-  if (amountMatch) {
-   const amount = Number(amountMatch[1].replace(/,/g, ""));
-
-   if (Number.isFinite(amount)) {
-	return amount;
-   }
-  }
- }
-
- return "";
-};
-
-extractText.extractAmount = extractAmount;
-
-module.exports =
-extractText;
+extractText.extractAmountDetails = extractAmountDetails;
+extractText.extractAmount = (text) => extractAmountDetails(text).amount;
+module.exports = extractText;

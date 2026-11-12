@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPayments } from "../api/paymentApi";
-import { useAuth } from "../hooks/useAuth";
+import { getPayments, getPaymentSummary } from "../api/paymentApi";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import DashboardCard from "../components/ui/DashboardCard";
@@ -9,12 +8,17 @@ import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
 import Skeleton from "../components/ui/Skeleton";
 import PaymentDetailsModal from "../components/ui/PaymentDetailsModal";
+import StudentLedger from "../components/StudentLedger";
 import {
   IconUpload,
   IconBell,
   IconTicket,
   IconInbox,
+  IconClock,
+  IconCheckCircle,
+  IconXCircle,
 } from "../components/icons/Icons";
+import { mergeDetails, peso, termList } from "../utils/summaryText";
 
 const formatDate = (dateStr) => {
   if (!dateStr) return "—";
@@ -27,10 +31,9 @@ const formatDate = (dateStr) => {
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const { user, displayName } = useAuth();
-  const studentId = user?.studentId;
 
-  const [payments, setPayments] = useState([]);
+  const [recentPayments, setRecentPayments] = useState([]);
+  const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -38,11 +41,12 @@ const StudentDashboard = () => {
   useEffect(() => {
     const fetchPayments = async () => {
       try {
-        const data = await getPayments();
-        const mine = studentId
-          ? data.filter((p) => p.studentId === studentId)
-          : data;
-        setPayments(mine);
+        const [recent, totals] = await Promise.all([
+          getPayments({ limit: 5 }),
+          getPaymentSummary(),
+        ]);
+        setRecentPayments(recent.data);
+        setSummary(totals);
       } catch {
         setError("Could not load payment data.");
       } finally {
@@ -51,33 +55,21 @@ const StudentDashboard = () => {
     };
 
     fetchPayments();
-  }, [studentId]);
+  }, []);
 
-  const stats = useMemo(() => {
-    const pending = payments.filter((p) => p.status === "Pending").length;
-    const approved = payments.filter((p) => p.status === "Approved").length;
-    const needAction = payments.filter(
-      (p) => p.status === "Rejected" || p.status === "Need Review"
-    ).length;
-
-    return {
-      total: payments.length,
-      pending,
-      approved,
-      needAction,
-    };
-  }, [payments]);
-
-  const recentPayments = useMemo(
-    () =>
-      [...payments]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5),
-    [payments]
-  );
+  // Each card says what it counts: receipts vs payments, which exam terms, how much.
+  const cards = useMemo(() => {
+    const d = summary.details || {};
+    const review = mergeDetails(d.pending, d.needReview);
+    const approved = mergeDetails(d.approved, d.directPayment);
+    const rejected = d.rejected || { count: 0, terms: [] };
+    const allTerms = mergeDetails(d.pending, d.needReview, d.approved, d.rejected, d.directPayment).terms;
+    return { submitted: summary.receiptsSubmitted ?? summary.total ?? 0, allTerms, review, approved, rejected };
+  }, [summary]);
 
   return (
     <div>
+      <StudentLedger />
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -87,27 +79,51 @@ const StudentDashboard = () => {
 
       <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Total Submissions"
-          value={stats.total}
-          valueClassName="text-blue-700"
+          label="Receipts Submitted"
+          value={cards.submitted}
+          valueClassName="text-sti-blue"
+          variant="icon"
+          icon={IconUpload}
+          iconClassName="bg-blue-50 text-sti-blue"
+          subLabel="Tuition receipts"
+          subLabelClassName="bg-blue-50 text-sti-blue"
+          detail={termList(cards.allTerms, "No receipts yet")}
           loading={loading}
         />
         <StatCard
-          label="Pending"
-          value={stats.pending}
+          label="In Cashier Review"
+          value={cards.review.count}
           valueClassName="text-amber-600"
+          variant="icon"
+          icon={IconClock}
+          iconClassName="bg-amber-50 text-amber-600"
+          subLabel={cards.review.count ? `${peso(cards.review.amount)} awaiting approval` : "Nothing waiting"}
+          subLabelClassName="bg-amber-50 text-amber-700"
+          detail={cards.review.count ? `${termList(cards.review.terms)}${cards.review.noAmount ? ` · ${cards.review.noAmount} amount to confirm` : ""}` : "Receipts the cashier has not checked yet"}
           loading={loading}
         />
         <StatCard
-          label="Approved"
-          value={stats.approved}
+          label="Payments Approved"
+          value={cards.approved.count}
           valueClassName="text-green-600"
+          variant="icon"
+          icon={IconCheckCircle}
+          iconClassName="bg-green-50 text-green-600"
+          subLabel={`${peso(cards.approved.amount)} credited to tuition`}
+          subLabelClassName="bg-green-50 text-green-700"
+          detail={cards.approved.count ? termList(cards.approved.terms, "Balance payments") : "No approved payments yet"}
           loading={loading}
         />
         <StatCard
-          label="Need Action"
-          value={stats.needAction}
-          valueClassName="text-red-500"
+          label="Rejected Receipts"
+          value={cards.rejected.count}
+          valueClassName="text-red-600"
+          variant="icon"
+          icon={IconXCircle}
+          iconClassName="bg-red-50 text-red-600"
+          subLabel={cards.rejected.count ? "Upload a new receipt" : "None rejected"}
+          subLabelClassName="bg-red-50 text-red-700"
+          detail={cards.rejected.count ? termList(cards.rejected.terms) : "Receipts the cashier sent back"}
           loading={loading}
         />
       </div>

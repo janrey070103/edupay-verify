@@ -1,7 +1,12 @@
 import API from "./client";
 
-export const getPayments = async () => {
-  const res = await API.get("/payments");
+export const getPayments = async (params = {}) => {
+  const res = await API.get("/payments", { params });
+  return res.data;
+};
+
+export const getPaymentSummary = async () => {
+  const res = await API.get("/payments/summary");
   return res.data;
 };
 
@@ -12,8 +17,8 @@ export const uploadPayment = async (formData) => {
   return res.data;
 };
 
-export const approvePayment = async (id) => {
-  const res = await API.put(`/payments/approve/${id}`);
+export const approvePayment = async (id, amount) => {
+  const res = await API.put(`/payments/approve/${id}`, { amount });
   return res.data;
 };
 
@@ -36,3 +41,7 @@ export const searchStudents = async (query) => {
   });
   return res.data;
 };
+
+// Cashier: one student's balance, cleared terms and recent payments.
+export const getStudentPaymentOverview = async (studentId) =>
+  (await API.get(`/payments/student/${encodeURIComponent(studentId)}/overview`)).data;

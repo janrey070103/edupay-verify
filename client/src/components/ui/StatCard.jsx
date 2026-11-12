@@ -10,6 +10,8 @@ const StatCard = ({
   iconClassName = "bg-blue-50 text-blue-600",
   subLabel,
   subLabelClassName = "text-blue-600 bg-blue-50",
+  // Optional muted line that says what the number is made of (e.g. "Prelim · Midterm").
+  detail,
   loading = false,
 }) => {
   if (variant === "icon" && Icon) {
@@ -32,6 +34,9 @@ const StatCard = ({
             >
               {subLabel}
             </span>
+          )}
+          {detail && !loading && (
+            <p className="mt-1.5 text-xs text-gray-500">{detail}</p>
           )}
         </div>
         <div className={`shrink-0 rounded-lg p-3 ${iconClassName}`}>

@@ -1,6 +1,9 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { getNavForRole } from "../../config/navigation";
 import { useAuth, clearAuth } from "../../hooks/useAuth";
+import AccountCard from "./AccountCard";
+import useNavBadges from "../../hooks/useNavBadges";
+import { formatBadge } from "../../utils/navBadges";
 import {
   IconHome,
   IconUpload,
@@ -15,6 +18,7 @@ import {
   IconCalendar,
   IconUsers,
   IconFile,
+  IconSettings,
 } from "../icons/Icons";
 
 const iconMap = {
@@ -29,20 +33,14 @@ const iconMap = {
   calendar: IconCalendar,
   users: IconUsers,
   printer: IconFile, // using IconFile as a stand-in for printer
-};
-
-const roleLabels = {
-  student: "Student",
-  cashier: "Cashier",
-  admin: "Admin",
-  teacher: "Teacher",
-  super_admin: "Super Admin",
+  settings: IconSettings,
 };
 
 const Sidebar = ({ open, onClose }) => {
   const navigate = useNavigate();
   const { role, displayName, initials } = useAuth();
   const navItems = getNavForRole(role);
+  const badges = useNavBadges(role);
 
   const handleLogout = () => {
     clearAuth();
@@ -52,7 +50,7 @@ const Sidebar = ({ open, onClose }) => {
   return (
     <aside
       className={[
-        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-100 bg-white",
+        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-100 bg-white print:hidden",
         "shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-transform duration-300 ease-in-out",
         "md:relative md:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full",
@@ -86,8 +84,9 @@ const Sidebar = ({ open, onClose }) => {
       </div>
 
       <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-6">
-        {navItems.map(({ label, path, icon }) => {
+        {navItems.map(({ label, path, icon, badge }) => {
           const Icon = iconMap[icon];
+          const count = badge ? badges[badge] || 0 : 0;
           return (
             <NavLink
               key={path}
@@ -103,26 +102,24 @@ const Sidebar = ({ open, onClose }) => {
               }
             >
               {Icon && <Icon className="h-5 w-5 opacity-75" />}
-              {label}
+              <span className="flex-1">{label}</span>
+              {count > 0 && (
+                <span
+                  className={`ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-black leading-none ${
+                    badge === "notifications" ? "bg-red-500 text-white" : "bg-sti-gold text-sti-blue"
+                  }`}
+                  aria-label={`${count} ${badge === "notifications" ? "unread" : "pending"}`}
+                >
+                  {formatBadge(count)}
+                </span>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
       <div className="border-t border-gray-100 bg-gray-50/50 p-4">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sti-blue text-sm font-bold text-white">
-            {initials}
-          </div>
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-semibold text-gray-800">
-              {displayName}
-            </p>
-            <p className="text-xs font-medium capitalize text-gray-500">
-              {roleLabels[role] ?? role}
-            </p>
-          </div>
-        </div>
+        <AccountCard role={role} displayName={displayName} initials={initials} />
         <button
           type="button"
           onClick={handleLogout}

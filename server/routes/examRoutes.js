@@ -1,6 +1,7 @@
 const express = require("express");
 const protect = require("../middleware/protect");
-const superAdminOnly = require("../middleware/superAdminOnly");
+const adminOnly = require("../middleware/allowRoles")("admin");
+const teacherOnly = require("../middleware/teacherOnly");
 const {
   createExam,
   getAllExams,
@@ -14,20 +15,27 @@ const {
   getExamScheduleReport,
 } = require("../controllers/examController");
 
+const { getMyExamCalendar, getTeacherExamCalendar } = require("../controllers/studentExamController");
+
 const router = express.Router();
 
-// Admin routes (super_admin only)
-router.post("/", protect, superAdminOnly, createExam);
-router.get("/", protect, getAllExams);
-router.get("/report/schedule", protect, getExamScheduleReport);
-router.get("/month", protect, getExamsForMonth);
-router.get("/date", protect, getExamsByDate);
-router.put("/:id", protect, superAdminOnly, updateExam);
-router.delete("/:id", protect, superAdminOnly, deleteExam);
-router.put("/:id/assign-proctor", protect, superAdminOnly, assignProctor);
-router.put("/:id/remove-proctor", protect, superAdminOnly, removeProctor);
+// Admin routes (department-scoped Admins only; the Super Admin has no access)
+router.post("/", protect, adminOnly, createExam);
+router.get("/", protect, adminOnly, getAllExams);
+router.get("/report/schedule", protect, adminOnly, getExamScheduleReport);
+router.get("/month", protect, adminOnly, getExamsForMonth);
+router.get("/date", protect, adminOnly, getExamsByDate);
+router.put("/:id", protect, adminOnly, updateExam);
+router.delete("/:id", protect, adminOnly, deleteExam);
+router.put("/:id/assign-proctor", protect, adminOnly, assignProctor);
+router.put("/:id/remove-proctor", protect, adminOnly, removeProctor);
 
 // Teacher routes
-router.get("/teacher/assigned", protect, getExamsForTeacher);
+router.get("/teacher/assigned", protect, teacherOnly, getExamsForTeacher);
+// Teacher: assigned exams as calendar events, with the students verified for each.
+router.get("/teacher/calendar", protect, teacherOnly, getTeacherExamCalendar);
+
+// Student: own exams as calendar events, with proctor verification details.
+router.get("/student/calendar", protect, require("../middleware/allowRoles")("student"), getMyExamCalendar);
 
 module.exports = router;

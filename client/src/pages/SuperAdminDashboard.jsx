@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAllUsers } from "../api/userManagementApi";
-import { getPayments } from "../api/paymentApi";
+import { getAllUsers, getUserSummary } from "../api/userManagementApi";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import DashboardCard from "../components/ui/DashboardCard";
@@ -10,26 +9,25 @@ import {
   IconUsers,
   IconCheckCircle,
   IconBarChart,
-  IconShield,
 } from "../components/icons/Icons";
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [summary, setSummary] = useState({ totalUsers: 0, activeStudents: 0, pendingStudents: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersData, paymentsData] = await Promise.all([
-          getAllUsers(),
-          getPayments(),
+        const [recent, totals] = await Promise.all([
+          getAllUsers({ limit: 5 }),
+          getUserSummary(),
         ]);
-        setUsers(usersData);
-        setPayments(paymentsData);
+        setUsers(recent.data);
+        setSummary(totals);
       } catch {
         setError("Could not load dashboard data.");
       } finally {
@@ -41,12 +39,8 @@ const SuperAdminDashboard = () => {
   }, []);
 
   const stats = {
-    totalUsers: users.length,
-    activeStudents: users.filter(
-      (u) => u.role === "student" && u.isActive !== false
-    ).length,
-    pendingPayments: payments.filter((p) => p.status === "Pending").length,
-    approvedPayments: payments.filter((p) => p.status === "Approved").length,
+    totalUsers: summary.totalUsers || 0,
+    activeStudents: summary.activeStudents || 0,
   };
 
   return (
@@ -58,7 +52,20 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {summary.unlistedCourse > 0 && (
+        <div className="mb-6 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            <strong>{summary.unlistedCourse} student(s)</strong> have a course that is not in the official course list,
+            so no department Admin can see or verify them. Set their course to fix this.
+          </p>
+          <button type="button" onClick={() => navigate("/user-management?courseIssue=1")}
+            className="min-h-11 shrink-0 rounded-lg bg-amber-600 px-4 text-sm font-bold text-white hover:bg-amber-700">
+            Review students
+          </button>
+        </div>
+      )}
+
+      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
         <StatCard
           label="Total Users"
           value={stats.totalUsers}
@@ -81,28 +88,6 @@ const SuperAdminDashboard = () => {
           subLabelClassName="bg-green-50 text-green-600"
           loading={loading}
         />
-        <StatCard
-          label="Pending Payments"
-          value={stats.pendingPayments}
-          valueClassName="text-sti-gold"
-          variant="icon"
-          icon={IconBarChart}
-          iconClassName="bg-sti-gold/10 text-sti-gold"
-          subLabel="Awaiting review"
-          subLabelClassName="bg-sti-gold/10 text-sti-blue"
-          loading={loading}
-        />
-        <StatCard
-          label="Approved"
-          value={stats.approvedPayments}
-          valueClassName="text-sti-blue"
-          variant="icon"
-          icon={IconShield}
-          iconClassName="bg-sti-gold/10 text-sti-blue"
-          subLabel="Verified"
-          subLabelClassName="bg-blue-50 text-sti-blue"
-          loading={loading}
-        />
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -114,7 +99,7 @@ const SuperAdminDashboard = () => {
         />
         <DashboardCard
           title="System Reports"
-          description="View payment and verification reports."
+          description="View the registered users report."
           icon={IconBarChart}
           onClick={() => navigate("/reports")}
         />

@@ -1,40 +1,12 @@
-const express =
-require("express");
+const router = require("express").Router();
+const protect = require("../middleware/protect");
+const allowRoles = require("../middleware/allowRoles");
+const { getAdminSummary, getEligibilityReport } = require("../controllers/adminController");
 
-const router =
-express.Router();
+// Department Admins only; every response is limited to the Admin's department.
+router.use(protect, allowRoles("admin"));
 
-const {
+router.get("/summary", getAdminSummary);
+router.get("/eligibility", getEligibilityReport);
 
- getPrelimEligible,
- getMidtermEligible,
- getPreFinalEligible,
- getFinalEligible
-
-} =
-require(
-"../controllers/adminController"
-);
-
-router.get(
-"/prelim",
-getPrelimEligible
-);
-
-router.get(
-"/midterm",
-getMidtermEligible
-);
-
-router.get(
-"/prefinal",
-getPreFinalEligible
-);
-
-router.get(
-"/final",
-getFinalEligible
-);
-
-module.exports =
-router;
+module.exports = router;

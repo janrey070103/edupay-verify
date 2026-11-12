@@ -4,9 +4,20 @@ const scanSchema = new mongoose.Schema(
   {
     teacherId: String,
     teacherName: String,
+    examType: String,
+    studentId: String,
+    // The specific exam (subject) this permit was verified for. One permit can be
+    // verified once per exam: a second scan for the same exam is refused (locked).
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
+    subject: String,
+    subjectCode: String,
+    room: String,
+    course: String,
+    courseYear: Number,
+    examDate: Date,
     action: {
       type: String,
-      enum: ["Scanned", "Approved", "Rejected"],
+      enum: ["Scanned", "Verified", "Approved", "Rejected"],
       default: "Scanned",
     },
     remarks: String,

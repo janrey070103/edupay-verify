@@ -1,104 +1,63 @@
-const Payment =
-require("../Models/Payments");
+const Payment = require("../Models/Payments");
+const Ledger = require("../Models/Ledger");
+const { escapeRegex, paginate, readDateRange, readPaging, readSort } = require("../utils/pagination");
+const { channelFilter } = require("../config/paymentChannels");
 
-const Ledger =
-require("../Models/Ledger");
+const STATUSES = ["Pending", "Approved", "Rejected", "Need Review", "Direct Payment"];
 
-// All Payments
-const getAllPayments =
-async (req,res)=>{
+const readFilters = (query) => {
+  const filter = {};
+  const statuses = String(query.status || "")
+    .split(",")
+    .map((status) => status.trim())
+    .filter((status) => STATUSES.includes(status));
+  if (statuses.length) filter.status = { $in: statuses };
+  const range = readDateRange(query);
+  if (range) filter.createdAt = range;
+  Object.assign(filter, channelFilter(query.channel));
+  return filter;
+};
 
-  try{
-
-    const payments =
-    await Payment.find();
-
-    res.json(payments);
-
-  }catch(error){
-
-    res.status(500).json({
-      message:error.message
-    });
-
+// Paginated payment report. Status tabs and date range are applied on the
+// server so paging never walks over a filtered subset in the browser.
+const getPaymentsReport = async (req, res) => {
+  try {
+    const filter = readFilters(req.query);
+    const studentId = String(req.query.studentId || "").trim().slice(0, 64);
+    if (studentId) filter.studentId = new RegExp(`^${escapeRegex(studentId)}$`, "i");
+    const paging = readPaging(req.query, { limit: 25 });
+    const sort = readSort(req.query, ["createdAt", "amount", "studentName", "status"]);
+    return res.json(await paginate(Payment, filter, paging, sort));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
-
 };
 
-// Approved Payments
-const getApprovedPayments =
-async (req,res)=>{
-
-  try{
-
-    const payments =
-    await Payment.find({
-      status:"Approved"
+const getReportSummary = async (req, res) => {
+  try {
+    const filter = readFilters({ from: req.query.from, to: req.query.to, channel: req.query.channel });
+    const [grouped, approvedAmount, fullyPaid] = await Promise.all([
+      Payment.aggregate([{ $match: filter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Payment.aggregate([
+        { $match: { ...filter, status: "Approved" } },
+        { $group: { _id: null, sum: { $sum: "$amount" } } },
+      ]),
+      Ledger.countDocuments({ fullyPaid: true }),
+    ]);
+    const summary = {
+      total: 0, pending: 0, approved: 0, rejected: 0, needReview: 0, directPayment: 0,
+      approvedAmount: approvedAmount[0]?.sum || 0, fullyPaid,
+    };
+    const key = { Pending: "pending", Approved: "approved", Rejected: "rejected",
+      "Need Review": "needReview", "Direct Payment": "directPayment" };
+    grouped.forEach((row) => {
+      if (key[row._id]) summary[key[row._id]] = row.count;
+      summary.total += row.count;
     });
-
-    res.json(payments);
-
-  }catch(error){
-
-    res.status(500).json({
-      message:error.message
-    });
-
+    return res.json(summary);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
-
 };
 
-// Rejected Payments
-const getRejectedPayments =
-async (req,res)=>{
-
-  try{
-
-    const payments =
-    await Payment.find({
-      status:"Rejected"
-    });
-
-    res.json(payments);
-
-  }catch(error){
-
-    res.status(500).json({
-      message:error.message
-    });
-
-  }
-
-};
-
-// Fully Paid Students
-const getFullyPaidStudents =
-async (req,res)=>{
-
-  try{
-
-    const students =
-    await Ledger.find({
-      fullyPaid:true
-    });
-
-    res.json(students);
-
-  }catch(error){
-
-    res.status(500).json({
-      message:error.message
-    });
-
-  }
-
-};
-
-module.exports = {
-
-  getAllPayments,
-  getApprovedPayments,
-  getRejectedPayments,
-  getFullyPaidStudents,
-
-};
+module.exports = { getPaymentsReport, getReportSummary };

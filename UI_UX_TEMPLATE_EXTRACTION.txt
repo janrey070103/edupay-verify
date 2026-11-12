@@ -1,0 +1,1201 @@
+================================================================================
+  CHMSU ICT SERVICE PLATFORM — COMPLETE UI/UX TEMPLATE EXTRACTION
+  For MERN Stack Migration Reference
+================================================================================
+
+
+================================================================================
+SECTION 1: DESIGN TOKENS & FOUNDATION
+================================================================================
+
+These are the core visual primitives that define the look and feel of every
+screen in the application. All values are Tailwind CSS utility classes that
+can be used directly in a React/Tailwind MERN project.
+
+--------------------------------------------------------------------------------
+1.1 COLOR PALETTE
+--------------------------------------------------------------------------------
+
+PRIMARY BLUE
+  Classes:  blue-600 (#2563EB), blue-700 (#1D4ED8), blue-50 (#EFF6FF)
+  Usage:    Primary action buttons, active navigation links, focus rings,
+            info badges, sidebar active state highlight, notification accents.
+            This is the dominant brand color throughout the interface.
+
+ACCENT GREEN
+  Classes:  green-600 (#16A34A), green-500 (#22C55E), green-50 (#F0FDF4)
+  Usage:    Login "Sign in" CTA button, success flash messages, completed
+            status badges, active task counts, confirmation states.
+            Used as the secondary action color for positive outcomes.
+
+DANGER RED
+  Classes:  red-500 (#EF4444), red-600 (#DC2626), red-50 (#FEF2F2)
+  Usage:    Error alerts, delete buttons, urgent priority indicators,
+            overdue task counts, unassigned task queue accent bar,
+            notification badges on the bell icon.
+
+WARNING AMBER
+  Classes:  amber-500 (#F59E0B), amber-600 (#D97706), amber-100 (#FEF3C7)
+  Usage:    Pending status badges, "Needs Clarification" states,
+            "Action Needed" stat card numbers, medium-priority indicators.
+
+PURPLE
+  Classes:  purple-700 (#7E22CE), purple-100 (#F3E8FF), purple-50 (#FAF5FF)
+  Usage:    Admin role badges, "Total Tasks" stat card number,
+            report chart accent color. Reserved for admin/authority contexts.
+
+TEAL
+  Classes:  teal-600 (#0D9488), teal-50 (#F0FDFA)
+  Usage:    "Completed Tasks" stat card in reports page only.
+            Niche accent for differentiating completed metrics.
+
+PAGE BACKGROUND
+  Value:    #f4f7f6 (applied to <body>)
+  Usage:    The overall application background. A very light grayish-green
+            that provides contrast against white card surfaces.
+
+SURFACE WHITE
+  Value:    white (#FFFFFF)
+  Usage:    All cards, tables, modals, sidebar, header, dropdowns.
+            Every content container sits on a white surface.
+
+BORDER COLOR
+  Classes:  border-gray-100 (#F3F4F6), divide-gray-50 (#F9FAFB)
+  Usage:    Card borders, table row dividers, section separators.
+            Extremely subtle — almost invisible against white.
+
+TEXT COLORS
+  Primary:    gray-800 (#1F2937), gray-900 (#111827) — headings, titles
+  Secondary:  gray-500 (#6B7280), gray-600 (#4B5563) — body text, subtitles
+  Muted:      gray-400 (#9CA3AF) — labels, timestamps, placeholder text
+  Link:       blue-600 → blue-700 on hover — all clickable text links
+
+--------------------------------------------------------------------------------
+1.2 TYPOGRAPHY
+--------------------------------------------------------------------------------
+
+PRIMARY FONT: Figtree
+  Weights loaded: 400, 500, 600, 700, 900
+  Source:     https://fonts.bunny.net/css?family=figtree:400,500,600
+  Applied:    font-sans (set as default sans in tailwind.config.js)
+  Usage:     All body text, buttons, labels, navigation items.
+
+SECONDARY FONTS (available but rarely used):
+  Inter    — font-inter, loaded via Google Fonts, available for alternatives
+  Poppins  — font-poppins, loaded via Google Fonts, available for alternatives
+  Roboto   — font-roboto, loaded via Google Fonts, available for alternatives
+
+HEADING STYLE (Page Titles):
+  Classes:  text-3xl font-black text-gray-800 tracking-tight
+  Example:  "Request Directory", "Operational Tasks", "ICT Calendar"
+  Desc:     Extra-large, extra-bold, tight letter-spacing for a modern,
+            authoritative look. Always paired with a subtitle below.
+
+SUBTITLE STYLE (Page Descriptions):
+  Classes:  text-sm text-gray-500 mt-1 font-medium
+  Example:  "Manage and monitor all ICT service requests."
+  Desc:     Small, medium-weight gray text placed directly under the title.
+
+SECTION LABEL STYLE (Card/Table Headers):
+  Classes:  text-[10px] font-bold text-gray-400 uppercase tracking-widest
+  Example:  "TOTAL REQUESTS", "PENDING APPROVALS", "REF CODE"
+  Desc:     Tiny, bold, all-caps with wide letter-spacing. Used for column
+            headers in tables and metric labels on stat cards.
+
+CARD TITLE STYLE:
+  Classes:  text-lg font-bold text-gray-800
+  Example:  "Recent Requests", "My Active Tasks"
+  Desc:     Used for section/panel headings inside card headers.
+
+BODY TEXT:
+  Classes:  text-sm font-medium/semibold text-gray-600/700/800
+  Desc:     Standard body content. Font weight varies: semibold for emphasis
+            (names, titles), medium for descriptions.
+
+--------------------------------------------------------------------------------
+1.3 SPACING SYSTEM
+--------------------------------------------------------------------------------
+
+Base unit: 4px (Tailwind default)
+
+CARD PADDING:       p-6 (24px) — standard card body padding
+SECTION PADDING:    p-4 sm:p-8 lg:p-10 — main content area, responsive
+CARD GAP:           gap-6 (24px) — between cards in grids
+SECTION GAP:        gap-8 (32px) — between major dashboard sections
+TABLE CELL:         px-6 py-4 — standard table cell padding
+MODAL PADDING:      p-6 (24px) — modal body padding
+SIDEBAR NAV:        px-4 py-2.5 — navigation link padding
+BUTTON PADDING:     py-2.5 px-5 — standard button padding
+HEADER HEIGHT:      h-20 (80px) — top header bar height
+SIDEBAR WIDTH:      w-64 (256px) — fixed sidebar width
+LOGO AREA HEIGHT:   h-24 (96px) — sidebar logo section height
+
+--------------------------------------------------------------------------------
+1.4 BORDER RADIUS
+--------------------------------------------------------------------------------
+
+Cards & Panels:     rounded-xl (12px) — main content containers
+Buttons:            rounded-lg (8px) — action buttons
+Inputs:             rounded-lg or rounded-xl (8-12px) — form fields
+Badges:             rounded-md (6px) — status pills
+Role Badges:        rounded-full (9999px) — circular pills for roles
+Avatars:            rounded-full or rounded-md — user profile images
+Modals:             rounded-2xl (16px) — dialog overlays
+
+--------------------------------------------------------------------------------
+1.5 SHADOW SYSTEM
+--------------------------------------------------------------------------------
+
+CARDS (Subtle):
+  Value:  shadow-[0_2px_10px_rgba(0,0,0,0.04)]
+  Desc:   Nearly invisible shadow that lifts cards slightly off the
+          background. Used on ALL white content containers.
+
+PRIMARY BUTTONS (Elevated):
+  Value:  shadow-[0_4px_14px_rgba(37,99,235,0.39)]
+  Desc:   Blue-tinted shadow beneath primary action buttons. Creates a
+          floating, clickable appearance.
+
+LOGIN CARD (Dramatic):
+  Value:  shadow-[0_20px_50px_rgba(0,0,0,0.1)]
+  Desc:   Large, soft shadow for the login dual-card. Gives a floating
+          modal-like appearance over the blurred background.
+
+MODALS & DROPDOWNS:
+  Value:  shadow-2xl
+  Desc:   Maximum shadow for overlays that sit above all other content.
+
+SIDEBAR:
+  Value:  shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+  Desc:   Right-side-only subtle shadow that separates sidebar from content.
+
+HEADER:
+  Value:  shadow-[0_2px_10px_rgba(0,0,0,0.02)]
+  Desc:   Bottom shadow on the top header bar. Extremely subtle.
+
+--------------------------------------------------------------------------------
+1.6 TRANSITIONS & ANIMATIONS
+--------------------------------------------------------------------------------
+
+COLOR TRANSITIONS:
+  Classes:  transition-colors (on most interactive elements)
+  Duration: Tailwind default (150ms)
+
+TRANSFORM TRANSITIONS:
+  Classes:  transition-transform duration-300 (sidebar slide, drawer)
+  Classes:  transition-all duration-300 (backdrops, toasts)
+
+LOGIN CARD ENTRANCE:
+  slide-in-left:  0.8s cubic-bezier(0.23, 1, 0.32, 1), translateX(-50px) → 0
+  slide-in-right: 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.2s delay, translateX(50px) → 0
+  Desc:           The two halves of the login card animate in from opposite
+                  sides with a smooth elastic easing and staggered timing.
+
+TOAST NOTIFICATIONS:
+  Enter: translate-y-full opacity-0 → translate-y-0 opacity-100 (300ms)
+  Exit:  translate-y-0 opacity-100 → translate-y-full opacity-0 (300ms)
+  Auto-dismiss after 5 seconds.
+
+DRAWER SLIDE:
+  Closed: translate-x-full (off-screen right)
+  Open:   translate-x-0 (fully visible)
+  Duration: 300ms ease-in-out
+
+MOBILE SIDEBAR:
+  Closed: -translate-x-full (off-screen left)
+  Open:   translate-x-0 (fully visible)
+  Duration: 300ms ease-in-out
+  Backdrop: opacity-0 → opacity-100 with backdrop-blur-sm
+
+NOTIFICATION PULSE (unread dot):
+  Classes:  animate-ping on a bg-blue-400 span behind a solid bg-blue-500 dot
+  Desc:     Creates a radar-pulse effect to draw attention to unread items.
+
+
+================================================================================
+SECTION 2: LAYOUT ARCHITECTURE
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 APP SHELL (Authenticated Pages)
+--------------------------------------------------------------------------------
+
+STRUCTURE:
+  <body class="font-sans antialiased text-gray-900 bg-[#f4f7f6] flex h-screen overflow-hidden">
+
+  ┌─────────────────────────┬──────────────────────────────────────────────┐
+  │                         │  ┌────────────────────────────────────────┐  │
+  │   SIDEBAR               │  │  HEADER (h-20, white, shadow, border) │  │
+  │   w-64, fixed           │  │  [☰ Menu] [Page Title]    [🔔 Bell]   │  │
+  │   white bg              │  ├────────────────────────────────────────┤  │
+  │   z-50                  │  │                                        │  │
+  │                         │  │  MAIN CONTENT                          │  │
+  │   ┌──────────────────┐  │  │  flex-1 overflow-y-auto               │  │
+  │   │ Logo (h-24)      │  │  │  p-4 sm:p-8 lg:p-10                  │  │
+  │   ├──────────────────┤  │  │  max-w-7xl mx-auto                    │  │
+  │   │ Nav Links        │  │  │                                        │  │
+  │   │  Dashboard       │  │  │  [Page content here]                  │  │
+  │   │  Requests        │  │  │                                        │  │
+  │   │  Tasks           │  │  │                                        │  │
+  │   │  Calendar        │  │  │                                        │  │
+  │   │  Reports         │  │  │                                        │  │
+  │   ├──────────────────┤  │  │                                        │  │
+  │   │ Admin Section    │  │  │                                        │  │
+  │   │  System Accounts │  │  │                                        │  │
+  │   │  Unit Directory  │  │  │                                        │  │
+  │   │  Locations       │  │  │                                        │  │
+  │   ├──────────────────┤  │  │                                        │  │
+  │   │ User Profile     │  │  │                                        │  │
+  │   │  Avatar + Name   │  │  │                                        │  │
+  │   │  Settings link   │  │  │                                        │  │
+  │   │  Logout button   │  │  │                                        │  │
+  │   └──────────────────┘  │  │                                        │  │
+  │                         │  └────────────────────────────────────────┘  │
+  └─────────────────────────┴──────────────────────────────────────────────┘
+
+SIDEBAR DETAILS:
+  Container:  bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100
+              fixed inset-y-0 left-0 z-50 w-64 transform
+  Mobile:     -translate-x-full (hidden by default), slides in on toggle
+  Desktop:    md:relative md:translate-x-0 (always visible)
+  Logo area:  h-24, centered, border-b border-gray-100
+              Logo image (w-12 h-12 rounded-full) + "CHMSU ICT" text
+              "CHMSU" in blue-700 font-black, "ICT" in green-600
+              Subtitle: text-[10px] font-semibold text-gray-400 uppercase tracking-widest
+  Nav area:   flex-1 px-4 py-6 space-y-1.5 overflow-y-auto
+  User area:  p-4 border-t border-gray-100 bg-gray-50/50 (pinned to bottom)
+
+HEADER DETAILS:
+  Container:  bg-white shadow-[0_2px_10px_rgba(0,0,0,0.02)] border-b border-gray-100
+              h-20 flex items-center justify-between
+  Padding:    px-4 sm:px-6 lg:px-8
+  Left:       Mobile menu button (md:hidden) + Page title slot (h2 font-bold text-2xl)
+  Right:      Notification bell button with badge count
+
+MAIN CONTENT:
+  Container:  flex-1 overflow-y-auto p-4 sm:p-8 lg:p-10
+  Inner:      max-w-7xl mx-auto (centers content, max 1280px)
+
+--------------------------------------------------------------------------------
+2.2 LOGIN PAGE LAYOUT
+--------------------------------------------------------------------------------
+
+STRUCTURE:
+  Full viewport: min-h-screen flex items-center justify-center p-4 sm:p-8
+  Background:    Blurred background image (blur 6px, scale 1.05) + white overlay
+
+  ┌────────────────────────────────────────────────────────┐
+  │                  BLURRED BG IMAGE                       │
+  │  ┌──────────────────────────────────────────────────┐  │
+  │  │  WHITE OVERLAY (rgba 255,255,255,0.55)           │  │
+  │  │                                                   │  │
+  │  │  ┌──────────────────┬──────────────────────────┐ │  │
+  │  │  │  LEFT HALF       │  RIGHT HALF              │ │  │
+  │  │  │  Gradient blue   │  White form area         │ │  │
+  │  │  │  bg-gradient-to  │                          │ │  │
+  │  │  │  -br from-blue   │  "Welcome back"          │ │  │
+  │  │  │  -700 to-blue    │  Email input             │ │  │
+  │  │  │  -900            │  Password input          │ │  │
+  │  │  │                  │  Remember me checkbox     │ │  │
+  │  │  │  Logo + CHMSU    │  [Sign in] green button  │ │  │
+  │  │  │  ICT Office      │                          │ │  │
+  │  │  │                  │                          │ │  │
+  │  │  │  Service Request │                          │ │  │
+  │  │  │  & Task Mgmt     │                          │ │  │
+  │  │  │                  │                          │ │  │
+  │  │  │  Description     │                          │ │  │
+  │  │  │  Facebook link   │                          │ │  │
+  │  │  │                  │                          │ │  │
+  │  │  │  Terms link      │                          │ │  │
+  │  │  └──────────────────┴──────────────────────────┘ │  │
+  │  └──────────────────────────────────────────────────┘  │
+  └────────────────────────────────────────────────────────┘
+
+CARD:     w-full max-w-5xl bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]
+LEFT:     w-full md:w-1/2 bg-gradient-to-br from-blue-700 to-blue-900 text-white p-12
+          Decorative: absolute positioned blurred circles (bg-white opacity-5, bg-green-400 opacity-10)
+RIGHT:    w-full md:w-1/2 p-8 sm:p-12 md:p-16 bg-white
+
+LOGIN BUTTON:
+  Classes:  w-full py-3.5 px-4 rounded-xl text-sm font-black text-white
+            bg-green-600 hover:bg-green-500 hover:-translate-y-0.5
+            shadow-[0_8px_20px_rgba(22,163,74,0.25)]
+  Desc:     Full-width green button with hover lift effect and green glow shadow.
+
+LOGIN INPUTS:
+  Classes:  block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl
+            focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm
+  Desc:     Rounded inputs with left-aligned SVG icons (pl-10 for icon space),
+            soft blue focus ring.
+
+--------------------------------------------------------------------------------
+2.3 GUEST LAYOUT (Register, Forgot Password, etc.)
+--------------------------------------------------------------------------------
+
+Simple centered layout:
+  Body:     font-sans text-gray-900 antialiased bg-gray-100
+  Wrapper:  min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0
+  Card:     w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md sm:rounded-lg border
+
+
+================================================================================
+SECTION 3: REUSABLE COMPONENT PATTERNS
+================================================================================
+
+Each pattern below includes the exact Tailwind classes and a description of
+when and how it is used throughout the application.
+
+--------------------------------------------------------------------------------
+3.1 STAT CARDS (Dashboard & Reports)
+--------------------------------------------------------------------------------
+
+VARIANT A — Centered (Requester Dashboard):
+  Container:  bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6
+              border border-gray-100 flex flex-col items-center text-center
+  Label:      text-xs font-bold text-gray-400 uppercase tracking-widest mb-2
+  Value:      text-3xl font-black text-{color}
+  Desc:       Used for the 4 top-level metric cards on the requester dashboard.
+              Color varies: blue-700 (total), amber-600 (pending),
+              green-600 (processing), gray-700 (completed).
+
+VARIANT B — Left-aligned with Icon (Staff/Admin Dashboard & Reports):
+  Container:  bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6
+              border border-gray-100 flex items-start justify-between
+  Label:      text-xs font-bold text-gray-400 uppercase tracking-widest mb-1
+  Value:      text-3xl font-black text-{color}
+  Sub-label:  text-xs text-{color} mt-2 font-medium bg-{color}-50
+              inline-block px-2 py-0.5 rounded
+  Icon:       p-3 bg-{color}-50 rounded-lg text-{color}  (top-right corner)
+  Desc:       Used for admin/staff dashboard stats. Includes a colored icon
+              container in the top-right and a small pill sub-label below
+              the number. Icon color matches the stat theme.
+
+GRID LAYOUT:  grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8
+
+--------------------------------------------------------------------------------
+3.2 DATA TABLES
+--------------------------------------------------------------------------------
+
+WRAPPER:
+  Container:  bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)]
+              border border-gray-100 overflow-hidden
+  Scroll:     overflow-x-auto (on inner div wrapping <table>)
+
+TABLE:
+  Element:    min-w-full divide-y divide-gray-100
+
+HEADER ROW:
+  Row bg:     bg-white border-b border-gray-100
+  Cell (th):  px-6 py-4 text-left text-[10px] font-bold text-gray-400
+              uppercase tracking-widest bg-gray-50/50
+  Desc:       Tiny uppercase bold gray labels on a barely-tinted background.
+
+BODY ROWS:
+  Cell (td):  px-6 py-4 whitespace-nowrap text-sm
+  Row hover:  hover:bg-blue-50/30 transition-colors group
+  Divider:    divide-y divide-gray-50
+  Desc:       Rows get a very subtle blue tint on hover. The "group" class
+              enables child elements to react to the row hover state
+              (e.g., title text turns blue via group-hover:text-blue-700).
+
+EMPTY STATE:
+  Container:  py-12 flex flex-col items-center justify-center bg-gray-50/30
+  Icon:       w-12 h-12 text-gray-300 mb-3
+  Heading:    text-sm font-semibold text-gray-500
+  Subtext:    text-xs text-gray-400 mt-1
+
+PAGINATION:
+  Wrapper:    px-6 py-4 border-t border-gray-100 bg-gray-50/50
+  Desc:       Sits at the bottom of the table card, separated by a border.
+
+--------------------------------------------------------------------------------
+3.3 STATUS BADGES
+--------------------------------------------------------------------------------
+
+STANDARD (Rounded Rectangle):
+  Base:       px-2.5 py-1 inline-flex text-[10px] font-bold rounded-md
+              uppercase tracking-wider shadow-sm
+  Submitted:  bg-blue-100 text-blue-800
+  In Progress: bg-green-100 text-green-800
+  Approved:   bg-emerald-100 text-emerald-800
+  Pending:    bg-amber-100 text-amber-800
+  Needs Clarification: bg-amber-100 text-amber-800
+  Completed:  bg-green-100 text-green-700 border border-green-200
+  Rejected:   bg-red-100 text-red-700
+  Closed:     bg-gray-100 text-gray-600
+  Reopened:   bg-purple-100 text-purple-800
+  Desc:       Small, bold, all-caps pills that appear in table cells and
+              list items. The color instantly communicates workflow state.
+
+ROLE BADGES (Rounded Pill):
+  Base:       inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold
+  Admin:      bg-purple-100 text-purple-800
+  OJT:        bg-green-100 text-green-800
+  Staff:      bg-gray-100 text-gray-800
+  Desc:       Full-round pills used in the user management table.
+
+--------------------------------------------------------------------------------
+3.4 PRIORITY INDICATORS
+--------------------------------------------------------------------------------
+
+STRUCTURE:
+  Container:  flex items-center gap-1.5 min-w-[80px]
+  Dot:        w-1.5 h-1.5 rounded-full bg-{color} shadow-[0_0_8px_rgba(...)]
+  Label:      text-xs font-semibold text-gray-600
+
+COLORS:
+  Urgent:  bg-red-500    shadow-[0_0_8px_rgba(239,68,68,0.6)]
+  High:    bg-orange-500  shadow-[0_0_8px_rgba(249,115,22,0.6)]
+  Medium:  bg-green-500   shadow-[0_0_8px_rgba(34,197,94,0.6)]
+  Low:     bg-green-500   shadow-[0_0_8px_rgba(34,197,94,0.6)]
+
+DESC: A small glowing dot paired with a text label. The glow effect
+      (box-shadow) creates a "status light" appearance that makes
+      priority instantly recognizable at a glance.
+
+--------------------------------------------------------------------------------
+3.5 BUTTONS
+--------------------------------------------------------------------------------
+
+PRIMARY ACTION:
+  Classes:  bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5
+            rounded-lg shadow-[0_4px_14px_rgba(37,99,235,0.39)] transition-all
+            flex items-center gap-2
+  Desc:     The main call-to-action button. Blue with a colored shadow that
+            makes it appear to float. Used for "New Request", "New Event",
+            "Filter", "Add New User", etc.
+
+SUCCESS ACTION (Login only):
+  Classes:  bg-green-600 hover:bg-green-500 hover:-translate-y-0.5 text-white
+            font-black py-3.5 px-4 rounded-xl
+            shadow-[0_8px_20px_rgba(22,163,74,0.25)]
+  Desc:     Green CTA with upward hover animation. Only used on login page.
+
+SECONDARY / CANCEL:
+  Classes:  bg-white border border-gray-300 rounded-lg text-sm font-bold
+            text-gray-700 hover:bg-gray-50 transition-colors px-4 py-2
+  Desc:     White button with border for cancel/dismiss actions.
+
+TABLE ROW ACTION:
+  Classes:  text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100
+            px-3 py-1.5 rounded-md transition-colors font-bold text-xs
+            inline-flex items-center gap-1
+  Desc:     Small pill button inside table cells for "View", "Review" actions.
+            Light blue background that darkens on hover.
+
+MARK AS READ (Notification):
+  Classes:  bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white
+            font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2
+  Desc:     Toggles from blue-on-light to white-on-blue on hover.
+
+DELETE ACTION:
+  Classes:  bg-red-50 text-red-600 hover:bg-red-600 hover:text-white
+            rounded-lg text-sm font-bold border border-red-200
+            hover:border-red-600 px-4 py-2
+  Desc:     Starts as light red, inverts to solid red on hover.
+
+--------------------------------------------------------------------------------
+3.6 SIDEBAR NAVIGATION LINKS
+--------------------------------------------------------------------------------
+
+ACTIVE STATE:
+  Classes:  flex items-center gap-3 px-4 py-2.5 text-sm font-semibold
+            rounded-lg bg-blue-50 text-blue-700
+  Desc:     Light blue background with blue text. The active route is
+            detected server-side (Laravel) or via pathname matching (React).
+
+INACTIVE STATE:
+  Classes:  flex items-center gap-3 px-4 py-2.5 text-sm font-semibold
+            rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900
+  Desc:     Gray text that darkens with a subtle gray background on hover.
+
+ICON:
+  Classes:  w-5 h-5 opacity-75 (SVG icon, stroke-based)
+  Desc:     24x24 stroke icons from Heroicons outline set. Opacity makes
+            them slightly faded to not compete with text.
+
+ADMIN SECTION DIVIDER:
+  Label:    pt-6 pb-2, px-4 text-[10px] font-bold text-gray-400 uppercase
+            tracking-widest
+  Desc:     A section label "Administration" that separates admin-only
+            navigation from regular links.
+
+NAV ITEMS:
+  Regular:    Dashboard, Requests, Tasks, Calendar, Reports
+  Admin-only: System Accounts, Unit Directory, Locations
+
+--------------------------------------------------------------------------------
+3.7 MODALS
+--------------------------------------------------------------------------------
+
+BACKDROP:
+  Classes:  fixed inset-0 z-[100] bg-gray-900/50 backdrop-blur-sm
+  Desc:     Semi-transparent dark overlay with blur effect. Click to close.
+
+CARD:
+  Classes:  bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden
+  Desc:     Centered white card with generous rounding and strong shadow.
+            max-w-lg = 512px. Larger modals use max-w-2xl.
+
+HEADER:
+  Classes:  px-6 py-4 border-b border-gray-100 flex justify-between
+            items-center bg-gray-50/50
+  Title:    text-lg font-black text-gray-800
+  Close:    text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100
+  Desc:     Light gray header strip with title on left, X button on right.
+
+BODY:
+  Classes:  p-6 space-y-4 (or p-6 md:p-8 for larger modals)
+  Scroll:   overflow-y-auto max-h-[70vh] (for long content like privacy policy)
+
+FOOTER:
+  Classes:  px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end
+  Desc:     Bottom strip with right-aligned action buttons.
+
+AGENDA LIST MODAL VARIANT:
+  Body:     p-4 space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar
+  Desc:     Used for calendar day agenda. Items are border-left colored cards.
+
+--------------------------------------------------------------------------------
+3.8 RIGHT-SIDE DRAWER (Detail Panel)
+--------------------------------------------------------------------------------
+
+CONTAINER:
+  Classes:  fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl
+            transform translate-x-full transition-transform duration-300
+            ease-in-out flex flex-col
+  Desc:     A panel that slides in from the right edge. max-w-md (448px)
+            prevents it from being too wide on large screens.
+
+BACKDROP:
+  Classes:  fixed inset-0 z-40 bg-black/30 transition-opacity duration-300
+  Desc:     Dark overlay behind the drawer. Click to close.
+
+HEADER:
+  Classes:  px-6 py-4 border-b flex justify-between items-center bg-gray-50
+  Title:    text-lg font-bold text-gray-800
+  Close:    text-gray-500 hover:text-gray-700 bg-white border border-gray-200
+            rounded p-1 hover:bg-gray-100
+
+CONTENT:
+  Classes:  flex-1 overflow-y-auto p-6
+  Loading:  Centered "Loading details..." text while fetching content.
+  Error:    Warning icon + "Could not load details" + "Please try again" text.
+
+BEHAVIOR:
+  Opens via:  openDrawer(type, id) — fetches `/${type}s/${id}/partial`
+  Closes via: closeDrawer() or clicking backdrop
+  Desc:       Used throughout the app to show detailed views of requests,
+              tasks, and calendar events without navigating away.
+
+--------------------------------------------------------------------------------
+3.9 TOAST NOTIFICATIONS
+--------------------------------------------------------------------------------
+
+CONTAINER:
+  Classes:  fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none
+  Desc:     Anchored to bottom-right. pointer-events-none allows clicking
+            through to content behind it. Individual toasts are pointer-events-auto.
+
+TOAST ITEM:
+  Base:     max-w-xs bg-white rounded-lg shadow-lg pointer-events-auto
+            border-l-4 border-{color}-500 flex transform transition-all duration-300
+  Info:     border-blue-500, icon text-blue-500
+  Success:  border-green-500, icon text-green-500
+  Error:    border-red-500, icon text-red-500
+
+STRUCTURE:
+  [Icon] [Message text-sm font-medium] [Close X button]
+
+ANIMATION:
+  Enter:    translate-y-full opacity-0 → removed (slides up into view)
+  Exit:     translate-y-full opacity-0 added (slides down and fades)
+  Duration: 300ms each
+  Auto-remove: 5 seconds after appearing
+
+--------------------------------------------------------------------------------
+3.10 ALERT / FLASH MESSAGES
+--------------------------------------------------------------------------------
+
+SUCCESS ALERT:
+  Container:  bg-green-50 border border-green-200 text-green-700 px-4 py-3
+              rounded-lg flex items-center gap-3 shadow-sm mb-6
+  Icon:       w-5 h-5 text-green-500 (checkmark circle SVG)
+  Text:       font-medium text-sm
+
+ADMIN VARIANT:
+  Success:    bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg
+  Error:      bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg
+  Desc:       Left-border accent variant used in admin pages.
+
+--------------------------------------------------------------------------------
+3.11 NOTIFICATION BELL & DROPDOWN
+--------------------------------------------------------------------------------
+
+BELL BUTTON:
+  Classes:  relative p-2 text-gray-400 hover:text-blue-600 rounded-full
+            hover:bg-blue-50 transition-colors
+  Icon:     h-6 w-6 bell SVG
+
+BADGE:
+  Classes:  absolute bottom-0 right-0 inline-flex items-center justify-center
+            h-4 min-w-[16px] px-1 text-[9px] font-bold text-white bg-red-500
+            rounded-full ring-2 ring-white shadow-sm
+  Desc:     Tiny red circle with white ring, positioned at bottom-right of
+            bell. Shows unread count (caps at "99+"). Hidden when count is 0.
+
+DROPDOWN PANEL:
+  Classes:  absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl
+            border border-gray-100 z-50 overflow-hidden
+
+  Header:   px-4 py-3 bg-gray-50 border-b border-gray-100
+            Title: text-sm font-bold text-gray-800
+            Count: text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full
+
+  List:     max-h-80 overflow-y-auto divide-y divide-gray-50
+
+  Item:     flex items-start gap-3 px-4 py-3 hover:bg-blue-50/40 transition-colors
+            Icon: w-8 h-8 rounded-full bg-{type}-100 text-{type}-600 font-bold text-xs
+            Message: text-sm text-gray-800 font-medium line-clamp-2
+            Time: text-[10px] text-gray-400 font-semibold uppercase tracking-wide
+
+  Footer:   border-t border-gray-100 bg-gray-50/80
+            Link: text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50
+            Text: "View all notifications →"
+
+NOTIFICATION ICON TYPES:
+  Approval/Complete:  ✓ symbol, bg-green-100, text-green-600
+  Rejection:          ✕ symbol, bg-red-100, text-red-600
+  Assignment:         → symbol, bg-blue-100, text-blue-600
+  Blocked/Escalated:  ! symbol, bg-amber-100, text-amber-600
+  Clarification:      ? symbol, bg-purple-100, text-purple-600
+  Default:            ● symbol, bg-gray-100, text-gray-600
+
+POLLING:
+  Interval: 10 seconds
+  Endpoint: /notifications/poll?since={ISO timestamp}
+  Behavior: Shows toast for each new notification, updates badge count,
+            refreshes dropdown if open.
+
+--------------------------------------------------------------------------------
+3.12 USER AVATAR
+--------------------------------------------------------------------------------
+
+WITH IMAGE:
+  Classes:  object-cover (applied to <img> tag)
+  Sizes:    h-9 w-9 (sidebar), h-7 w-7 (table stacked), h-8 w-8 (user table)
+
+FALLBACK (No Image):
+  Classes:  flex items-center justify-center font-bold shrink-0
+            bg-blue-600 border border-blue-600 text-white (sidebar)
+            bg-blue-100 text-blue-700 (tables, default)
+  Content:  First letter of user's name, uppercased.
+
+STACKED AVATARS (Multi-assignee in Tasks):
+  Container:  flex -space-x-2
+  Each:       h-7 w-7 rounded-full border-2 border-white shadow-sm ring-white ring-2
+  Overflow:   +N indicator div: h-7 w-7 rounded-full bg-gray-200 border-2
+              border-white text-gray-600 font-bold text-[10px]
+  Max shown:  4 avatars, then "+N" overflow circle
+  Desc:       Overlapping circular avatars with white borders for a clean
+              stacked appearance. Used in the tasks table for multi-assignee.
+
+--------------------------------------------------------------------------------
+3.13 FORM INPUTS
+--------------------------------------------------------------------------------
+
+STANDARD INPUT:
+  Classes:  w-full rounded-lg border-gray-300 shadow-sm
+            focus:border-blue-500 focus:ring-blue-500 sm:text-sm
+  Desc:     Used in modals and create forms. Standard Tailwind form styling
+            with blue focus ring.
+
+LOGIN INPUT (Enhanced):
+  Classes:  block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl
+            text-gray-900 placeholder-gray-400 focus:ring-2
+            focus:ring-blue-500/20 focus:border-blue-500 shadow-sm font-medium
+  Icon:     Absolute positioned SVG in left-0 pl-3
+  Desc:     Larger, more rounded inputs with icon prefix. The focus ring is
+            a subtle 20% opacity blue ring instead of solid.
+
+LABELS:
+  Standard: block text-sm font-medium text-gray-700 mb-1
+  Uppercase: block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2
+  Required:  Red asterisk <span class="text-red-500">*</span>
+
+SELECT:
+  Classes:  Same as input, with form-select styling from @tailwindcss/forms plugin
+
+TEXTAREA:
+  Classes:  Same as input, with rows="3" or rows="4"
+
+CHECKBOX:
+  Classes:  w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500
+            cursor-pointer (login "Remember me")
+  In list:  rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 h-4 w-4
+            (assignee checkboxes in task assignment)
+
+ERROR MESSAGES:
+  Classes:  text-sm text-red-600 mt-2
+  Desc:     Appears below the input when validation fails.
+
+--------------------------------------------------------------------------------
+3.14 CARD / PANEL (Content Sections)
+--------------------------------------------------------------------------------
+
+STANDARD CARD:
+  Container:  bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)]
+              border border-gray-100 overflow-hidden transition-colors
+
+  HEADER (optional):
+    Classes:  px-6 py-4 border-b border-gray-100 bg-gray-50/50
+              flex justify-between items-center
+    Title:    text-lg font-bold text-gray-800 (or text-sm for smaller cards)
+    Action:   Link or button on the right side
+
+  BODY:
+    Classes:  p-6 (or divide-y divide-gray-50 for list-style content)
+
+  FOOTER (optional):
+    Classes:  px-6 py-4 bg-gray-50/50 border-t border-gray-100 text-center
+
+  Desc:       The universal container for all content sections. Used for
+              dashboard panels, form wrappers, notification lists, etc.
+
+LIST-STYLE CARD (Notifications, Recent Requests):
+  Body:       divide-y divide-gray-50 (or divide-gray-100 for notifications)
+  Item:       p-4 or p-6, hover:bg-blue-50/50 or hover:bg-gray-50/50
+              transition-colors cursor-pointer group
+  Desc:       Card with vertically stacked clickable items separated by
+              thin dividers. Hover highlights in light blue.
+
+HIGHLIGHTED CARD (Unassigned Tasks Queue):
+  Container:  border-red-100 (instead of gray-100)
+  Accent:     absolute top-0 left-0 w-1 h-full bg-red-500 (left red bar)
+  Header:     bg-red-50/50 border-b border-red-100 pl-7 (indented past bar)
+  Items:      divide-red-50, hover:bg-red-50/50, pl-7
+  Desc:       A danger-themed card variant for items requiring attention.
+
+--------------------------------------------------------------------------------
+3.15 EMPTY STATES
+--------------------------------------------------------------------------------
+
+STANDARD:
+  Container:  py-12 flex flex-col items-center justify-center bg-gray-50/30
+  Icon:       w-12 h-12 text-gray-300 mb-3 (SVG, usually inbox or clipboard)
+  Heading:    text-sm font-semibold text-gray-500
+  Subtext:    text-xs text-gray-400 mt-1
+
+LARGE (Notification center):
+  Container:  p-16 flex flex-col items-center justify-center text-center bg-gray-50/50
+  Icon wrap:  h-20 w-20 bg-white rounded-full shadow-sm border border-gray-100
+              flex items-center justify-center mb-5
+  Icon:       h-10 w-10 text-gray-300
+  Heading:    text-lg font-black text-gray-800 mb-1
+  Subtext:    text-sm text-gray-500 font-medium
+
+DESC: Centered, vertically stacked placeholder for when there is no data.
+      Uses large faded SVG icons and friendly messaging.
+
+--------------------------------------------------------------------------------
+3.16 PAGE HEADER (Title + CTA)
+--------------------------------------------------------------------------------
+
+STRUCTURE:
+  Container:  mb-8 flex justify-between items-end
+  Left:       Title + subtitle
+    Title:    text-3xl font-black text-gray-800 tracking-tight
+    Subtitle: text-sm text-gray-500 mt-1 font-medium
+  Right:      Primary action button (e.g., "New Request")
+
+RESPONSIVE VARIANT (Reports page):
+  Container:  mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4
+  Desc:       Stacks vertically on mobile, side-by-side on desktop.
+
+DESC: Every page follows this header pattern: bold title, muted description,
+      and an optional action button aligned to the right.
+
+--------------------------------------------------------------------------------
+3.17 CALENDAR GRID
+--------------------------------------------------------------------------------
+
+CONTAINER:
+  Card:       bg-white rounded-xl shadow border border-gray-100
+              overflow-hidden flex flex-col min-h-[850px]
+
+  HEADER:     px-6 py-5 border-b border-gray-100
+    Title:    text-2xl font-black text-blue-800 ("Month Year")
+    Controls: flex space-x-2 bg-gray-50/50 p-1 rounded-lg border border-gray-100
+    Buttons:  bg-white border border-gray-200 shadow-sm rounded-md px-4 py-1.5
+              text-xs font-bold hover:bg-gray-50 hover:text-blue-600
+
+  DAY HEADERS: grid grid-cols-7 border-b border-gray-100 bg-gray-50/80
+    Each:     py-3 text-center text-[11px] font-bold text-gray-400 uppercase tracking-widest
+
+  GRID:       flex-1 grid grid-cols-7 grid-rows-5 bg-gray-100 gap-px
+    Day cell: bg-white p-2 min-h-[100px] hover:bg-blue-50/30 transition-colors
+              relative group border-[0.5px] border-transparent hover:border-blue-100
+    Empty:    bg-gray-50/50 p-2 min-h-[100px] text-gray-400
+
+  TODAY INDICATOR:
+    Number:   w-7 h-7 rounded-md bg-blue-600 text-white font-bold shadow-sm
+    Desc:     Solid blue circle behind today's date number.
+
+EVENT CHIPS (in calendar cells):
+  Base:       text-[10px] px-2 py-1 truncate font-bold cursor-pointer
+              transition-all shadow-sm flex items-center gap-1
+  Task:       bg-red-50 text-red-700 border-y border-red-200/60
+  Scheduled:  bg-blue-50 text-blue-700 border-y border-blue-200/60
+  Completed:  bg-green-50 text-green-700 border-y border-green-200/60
+
+  MULTI-DAY SPANNING:
+    Start day:  rounded-l-md rounded-r-none mr-[-8px] z-10 border-l
+    End day:    rounded-r-md rounded-l-none ml-[-8px] z-10 border-r
+    Middle day: rounded-none mx-[-8px] z-0 opacity-90
+    Desc:       Events spanning multiple days connect visually across cells
+                with negative margins and selective border-radius.
+
+  HOVER SYNC: Events with same data-event-id scale and brighten together
+              on hover across all their spanned cells.
+
+  "+ N MORE" LINK:
+    Classes:  text-[10px] font-bold text-gray-500 hover:text-blue-600
+              cursor-pointer text-center mt-1 hover:bg-gray-100 rounded-md py-0.5
+    Desc:     When more than 3 events exist in a day cell, shows count link
+              that opens a day agenda modal.
+
+DASHBOARD CALENDAR VARIANT:
+  Layout:     2/3 width (lg:col-span-2) in dashboard grid
+  Cell size:  min-h-0, grid-template-rows: repeat(N, minmax(80px, 1fr))
+  Event max:  2 visible + "+N more" link
+  Desc:       Smaller, more compact calendar embedded in the dashboard.
+
+
+================================================================================
+SECTION 4: PAGE-BY-PAGE BREAKDOWN
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 LOGIN PAGE (auth/login)
+--------------------------------------------------------------------------------
+  Layout:     Full-screen centered, blurred background image + white overlay
+  Structure:  Dual split-card (left gradient branding, right white form)
+  Form:       Email + Password inputs with icons, Remember me, Sign in button
+  Branding:   Logo, "CHMSU ICT Office" heading, service description
+  Links:      Facebook page link, Terms and Agreements modal trigger
+  Modal:      Privacy/Data Privacy Act compliance modal with blue info sections
+  Animations: slide-in-left and slide-in-right entrance animations
+
+--------------------------------------------------------------------------------
+4.2 DASHBOARD — STAFF/ADMIN (dashboard/index)
+--------------------------------------------------------------------------------
+  Stats Row:  4 stat cards (Variant B) — Pending Approvals (blue),
+              Active Tasks (green), Overdue Tasks (red), Next Event (gray)
+  Main Grid:  3-column grid (lg:grid-cols-3), dynamically sized to viewport
+  Left (2/3): Operational Calendar (full height, independently scrollable)
+  Right (1/3): Stacked scrollable panels:
+    - Recent Requests (list card with drawer triggers)
+    - My Active Tasks (list card with drawer triggers)
+    - Unassigned Tasks (admin-only, red-accented danger card)
+  Day Modal:  Agenda modal opens when clicking "+N more" on calendar
+
+--------------------------------------------------------------------------------
+4.3 DASHBOARD — REQUESTER (dashboard/index)
+--------------------------------------------------------------------------------
+  Stats Row:  4 stat cards (Variant A, centered) — Total Requests (blue),
+              Action Needed (amber), Currently Processing (green),
+              Closed/Resolved (gray)
+  List:       Single full-width card "My Recent Requests" with:
+    - Header: title + "New Request" button
+    - Items:  Clickable rows with title, metadata, status badge
+    - Footer: "View All Requests →" link
+    - Empty:  Friendly illustration + message
+
+--------------------------------------------------------------------------------
+4.4 REQUESTS INDEX (requests/index)
+--------------------------------------------------------------------------------
+  Header:     "Request Directory" + "New Request" button (requester/admin only)
+  Alert:      Success flash message (green)
+  Table:      6 columns — Ref Code, Details (title+type), Origin (name+unit),
+              Status & Priority (badge + glowing dot), Submitted (date+time),
+              Actions ("Review" button → opens drawer)
+  Pagination: Bottom of card if results have multiple pages
+  Empty:      Inbox icon + "No requests found" message
+
+--------------------------------------------------------------------------------
+4.5 REQUEST CREATE (requests/create)
+--------------------------------------------------------------------------------
+  Layout:     Centered form, max-w-3xl, single white card
+  Header:     "Request Details" with subtitle in gray card header
+  Grid:       6-column responsive grid (sm:grid-cols-6)
+  Fields:     Title (4 cols), Type of Service (2 cols),
+              Requesting Unit (3 cols), Exact Location (3 cols),
+              Description (6 cols, textarea),
+              Preferred Date/Time (3 cols), Priority Level (3 cols)
+  Footer:     Cancel link + "Submit Request" blue button
+  Note:       Requesters see their unit locked (disabled input with note)
+
+--------------------------------------------------------------------------------
+4.6 TASKS INDEX (tasks/index)
+--------------------------------------------------------------------------------
+  Header:     "Operational Tasks" title + subtitle
+  Table:      5 columns — Related Request (ref code), Task Info (title+due date),
+              Assigned To (stacked avatars + names + assign button),
+              Priority & Status (badge + glowing dot), Actions ("View" button)
+  Assign:     Admin-only dropdown for multi-assignee selection:
+    - Fixed-position dropdown positioned below button
+    - Checkbox list with avatars, names, roles
+    - "Save Assignments" blue button at bottom
+    - Disabled when task is Completed/Cancelled
+  Pagination: Same as requests
+
+--------------------------------------------------------------------------------
+4.7 CALENDAR (calendar/index)
+--------------------------------------------------------------------------------
+  Header:     "ICT Calendar" + "New Event" button (admin only)
+  Card:       Full-height calendar with month navigation (Prev/Today/Next)
+  Grid:       7-column day grid with events rendered as colored chips
+  Add Modal:  Form with Entity Type toggle (Event/Task), dynamic fields:
+    - Event: start datetime, end time (single-day) or end datetime (multi-day),
+             duration type, status, venue
+    - Task:  target date, priority, unit, location, assignee checkboxes
+    - Both:  title, description
+  View Modal: Read-only event details with delete option (admin)
+  Agenda Modal: Day agenda list with border-left colored items
+
+--------------------------------------------------------------------------------
+4.8 NOTIFICATIONS (notifications/index)
+--------------------------------------------------------------------------------
+  Layout:     Centered, max-w-4xl
+  Header:     "Your Notifications" + "Mark all as read" button (if unread exist)
+  List:       Card with divide-y divide-gray-100
+  Item:       Avatar icon (gradient, type-specific) + message + timestamp
+  Unread:     bg-blue-50/50 background, bold text, animated ping dot (blue)
+  Read:       White background, medium text, gray icon
+  Actions:    "View Details" button (blue, links to related item),
+              "Mark read" / "Dismiss" (appears on hover)
+  Empty:      Large centered "You're all caught up!" message
+
+--------------------------------------------------------------------------------
+4.9 REPORTS (reports/index)
+--------------------------------------------------------------------------------
+  Header:     "System Reports & Analytics" + date range filter bar
+  Filter:     White pill with start date, "to", end date, "Filter" button
+  Stats:      4 stat cards — Total Requests (blue), Closed Requests (green),
+              Total Tasks (purple), Completed Tasks (teal)
+  Charts Row 1 (3 cols):
+    - Request Volume Trend (2/3 width): ApexCharts area chart, blue+green
+    - Requests by Category (1/3 width): ApexCharts donut chart
+  Charts Row 2 (2 cols):
+    - Staff Task Workload (1/2): ApexCharts horizontal stacked bar chart
+    - Requests per Unit (1/2): Scrollable list with blue count badges
+  Library:    ApexCharts via CDN (https://cdn.jsdelivr.net/npm/apexcharts)
+  Chart Config: Light theme, #3B82F6 blue, #10B981 green, gradient fills,
+                smooth curves, no toolbar, subtle grid lines (#f1f5f9)
+
+--------------------------------------------------------------------------------
+4.10 ADMIN — USER MANAGEMENT (admin/users/index)
+--------------------------------------------------------------------------------
+  Header:     "System Accounts" + "Add New User" button
+  Alerts:     Green success / Red error with left-border accent
+  Table:      4 columns — User (avatar+name+email), Role (pill badge),
+              Department/Unit, Actions (Edit/Delete links)
+  Empty:      Simple centered text "No users configured yet."
+
+--------------------------------------------------------------------------------
+4.11 PROFILE (profile/edit)
+--------------------------------------------------------------------------------
+  Layout:     max-w-7xl mx-auto, space-y-6
+  Structure:  3 stacked white cards:
+    - Update Profile Information form
+    - Update Password form
+    - Delete Account form
+  Each:       p-4 sm:p-8 bg-white shadow sm:rounded-lg border
+
+--------------------------------------------------------------------------------
+4.12 SIDEBAR (layouts/sidebar)
+--------------------------------------------------------------------------------
+  See Section 2.1 and 3.6 for full details.
+  Key points:
+    - Fixed width 264px, full height
+    - Logo + "CHMSU ICT" branding at top
+    - Scrollable navigation in middle
+    - Admin section separated by "Administration" label
+    - User profile card at bottom with avatar, name, role, Settings, Logout
+
+
+================================================================================
+SECTION 5: INTERACTIVE BEHAVIOR PATTERNS
+================================================================================
+
+--------------------------------------------------------------------------------
+5.1 NOTIFICATION POLLING (Real-time Updates)
+--------------------------------------------------------------------------------
+  Interval:   10 seconds (setInterval)
+  Endpoint:   GET /notifications/poll?since={ISO timestamp}
+  On new notifications:
+    1. Show toast for each (color based on type: error for reject/blocked,
+       success for approve/complete, info for others)
+    2. Update lastPollTime to latest notification's created_at
+    3. Refresh dropdown if currently open
+    4. Update badge count
+  Time display: Custom timeAgo() function — "Just now", "Nm ago", "Nh ago", "Nd ago"
+
+--------------------------------------------------------------------------------
+5.2 DRAWER (Detail Panel)
+--------------------------------------------------------------------------------
+  Open:       openDrawer(type, id) → fetches GET /{type}s/{id}/partial
+              Removes translate-x-full class, shows backdrop
+  Close:      closeDrawer() → adds translate-x-full, hides backdrop
+  Loading:    Shows "Loading details..." placeholder
+  Error:      Shows warning icon + error message + retry suggestion
+  Usage:      Request "Review", Task "View", Calendar event click
+
+--------------------------------------------------------------------------------
+5.3 MOBILE SIDEBAR
+--------------------------------------------------------------------------------
+  Toggle:     toggleMobileSidebar()
+  Open:       Removes -translate-x-full from sidebar, shows backdrop with opacity transition
+  Close:      Adds -translate-x-full, fades backdrop, hides after 300ms
+  Backdrop:   bg-gray-900/50 backdrop-blur-sm, click to close
+
+--------------------------------------------------------------------------------
+5.4 DROPDOWN POSITIONING (Task Assignment)
+--------------------------------------------------------------------------------
+  Strategy:   Fixed positioning calculated from button's getBoundingClientRect()
+  Position:   Top = button bottom + 4px, Left = button left
+  Overflow:   If dropdown would go off-screen right, repositions to window edge - 16px
+  Width:      w-64 (256px fixed)
+  Close:      Click outside detection via document click listener
+  Single:     Only one dropdown open at a time (closes previous)
+
+--------------------------------------------------------------------------------
+5.5 CALENDAR RENDERING
+--------------------------------------------------------------------------------
+  Approach:   Pure JavaScript DOM manipulation (no library)
+  Data:       Events passed as JSON array from server
+  Rendering:  Loops through month days, filters events by date overlap
+  Multi-day:  Connected visual spanning with border-radius and margin tricks
+  Hover sync: All segments of same event highlight together via data-event-id
+  Navigation: prev/next/today buttons modify currentDate and re-render
+
+
+================================================================================
+SECTION 6: TAILWIND CONFIG (Framework-Agnostic)
+================================================================================
+
+// tailwind.config.js — Use directly in MERN project
+// Just update content paths to your React source files
+
+export default {
+  content: ['./src/**/*.{js,jsx,ts,tsx}'],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+        inter: ['Inter', ...defaultTheme.fontFamily.sans],
+        poppins: ['Poppins', ...defaultTheme.fontFamily.sans],
+        roboto: ['Roboto', ...defaultTheme.fontFamily.sans],
+      },
+    },
+  },
+  plugins: [require('@tailwindcss/forms')],
+};
+
+CUSTOM CSS (add to your global stylesheet):
+
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 20px;
+  }
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: #94a3b8;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  @keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-50px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .slide-in-left {
+    animation: slideInLeft 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+  .slide-in-right {
+    animation: slideInRight 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.2s forwards;
+  }
+
+
+================================================================================
+SECTION 7: MERN STACK MIGRATION MAP
+================================================================================
+
+LARAVEL/BLADE              →  REACT EQUIVALENT
+─────────────────────────────────────────────────────────────────────────────
+<x-app-layout>             →  <AppLayout> wrapper component with sidebar+header
+@include('layouts.sidebar')→  <Sidebar /> React component
+{{ $slot }}                →  {children} prop
+@yield('content')          →  <Outlet /> (React Router)
+<x-slot name="header">     →  Pass header as prop or context
+@if(auth()->user()->isAdmin)→ {user.role === 'admin' && <Component />}
+@forelse($items as $item)  →  {items.length ? items.map(...) : <EmptyState />}
+@csrf                      →  Axios interceptors with CSRF token header
+{{ route('requests.index')}}→  useNavigate('/requests') or <Link to="/requests">
+{{ old('field') }}         →  Controlled input with useState
+{{ $errors->get('email') }}→  Form validation state from API response
+{{ session('success') }}   →  Toast notification context/state
+{{ auth()->user()->name }}→  useAuth() hook → user.name
+{{ asset('images/...') }}  →  Static import or /public path reference
+@vite(['css','js'])        →  Vite entry point in index.html (same tooling)
+Alpine.js x-data/x-show   →  React useState/useEffect
+Alpine.js x-on:click       →  onClick handler
+ApexCharts CDN             →  npm install react-apexcharts apexcharts
+Heroicons (inline SVG)     →  @heroicons/react package or keep inline SVGs
+
+
+================================================================================
+SECTION 8: NPM PACKAGES NEEDED FOR MERN
+================================================================================
+
+Core UI:
+  tailwindcss           — Same utility classes
+  @tailwindcss/forms    — Form element styling (used throughout)
+  autoprefixer          — Tailwind PostCSS dependency
+
+Charts:
+  apexcharts            — Chart rendering engine
+  react-apexcharts      — React wrapper for ApexCharts
+
+Icons:
+  @heroicons/react      — React components for Heroicons (outline set used)
+
+Routing:
+  react-router-dom      — Client-side routing (replaces Laravel routes)
+
+HTTP Client:
+  axios                 — API calls (replaces Laravel's fetch/form submissions)
+
+State Management:
+  zustand or context    — Auth state, notification state, drawer state
+
+Date Handling:
+  date-fns or dayjs     — Date formatting (replaces Carbon/Laravel date methods)
+
+Toast:
+  react-hot-toast       — Or build custom toast system matching Section 3.9
+
+Form Handling:
+  react-hook-form       — Form validation and state management
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -1,20 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getPayments,
+  getPaymentSummary,
   approvePayment,
   rejectPayment,
-  createDirectPayment,
-  searchStudents,
 } from "../api/paymentApi";
 import { useToast } from "../context/ToastContext";
-import PageHeader from "../components/ui/PageHeader";
+import DataTable from "../components/ui/DataTable";
+import Pagination from "../components/ui/Pagination";
 import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
 import Drawer from "../components/ui/Drawer";
-import Skeleton from "../components/ui/Skeleton";
+import DirectPaymentPanel from "../components/DirectPaymentPanel";
+import ReceiptCheckSummary from "../components/ReceiptCheckSummary";
+import { channelLabel, channelShort } from "../utils/paymentChannels";
+import usePaginated from "../hooks/usePaginated";
 import { IconInbox, IconLoader } from "../components/icons/Icons";
+import { NAV_BADGES_EVENT, formatBadge, refreshNavBadges } from "../utils/navBadges";
+import SortSelect from "../components/ui/SortSelect";
+import PaidViaSelect from "../components/ui/PaidViaSelect";
+import DateRangeFilter from "../components/ui/DateRangeFilter";
 
-const FILTERS = ["All", "Pending", "Approved", "Rejected"];
+const FILTERS = ["All", "Pending", "Need Review", "Approved", "Rejected"];
+const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 const REJECTION_REASONS = [
   { value: "blurry", label: "Image is blurry" },
   { value: "incomplete", label: "Receipt incomplete" },
@@ -35,82 +43,104 @@ const formatDate = (dateStr) => {
 const VerifyPayments = () => {
   const { showToast } = useToast();
 
-  // Receipt verification state
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [filter, setFilter] = useState("All");
   const [selected, setSelected] = useState(null);
-  const [error, setError] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [confirmedAmount, setConfirmedAmount] = useState("");
   const [rejectionReason, setRejectionReason] = useState("other");
+  const amountRef = useRef(null);
 
-  // Direct payment state
-  const [tab, setTab] = useState("receipts"); // "receipts" or "direct"
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [directPaymentForm, setDirectPaymentForm] = useState({
-    amount: "",
-    paymentDescription: "",
-    examCoverage: "",
-  });
-  const [directPaymentLoading, setDirectPaymentLoading] = useState(false);
+  const [tab, setTab] = useState("receipts");
 
-  const fetchPayments = useCallback(async () => {
-    try {
-      const data = await getPayments();
-      setPayments(data);
-      setError("");
-    } catch {
-      setError("Could not load payments.");
-    } finally {
-      setLoading(false);
-    }
+  const {
+    rows: payments,
+    meta,
+    limit,
+    loading,
+    fetching,
+    error,
+    filters,
+    sort,
+    order,
+    setFilter: setStatusFilter,
+    setSorting,
+    setDateRange,
+    setPage,
+    setLimit,
+    refresh,
+  } = usePaginated(
+    ({ status, ...params }) => getPayments(status ? { ...params, status } : params),
+    { initialLimit: 20, initialFilters: { status: "", from: "", to: "", channel: "" } }
+  );
+
+
+  const filter = filters.status || "All";
+
+  // Counts for the alert badges on the "Pending" / "Need Review" pills.
+  const [statusCounts, setStatusCounts] = useState({});
+  const loadCounts = useCallback(() => getPaymentSummary()
+    .then((summary) => setStatusCounts({ Pending: summary?.pending ?? 0, "Need Review": summary?.needReview ?? 0 }))
+    .catch(() => {}), []);
+
+  // Refresh keeps the current page so a poll never moves the cashier away from
+  // the row they are reviewing.
+  useEffect(() => {
+    loadCounts();
+    const interval = setInterval(() => { refresh(); loadCounts(); }, 20000);
+    window.addEventListener(NAV_BADGES_EVENT, loadCounts);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(NAV_BADGES_EVENT, loadCounts);
+    };
+  }, [refresh, loadCounts]);
+
+
+  const openReview = (payment) => {
+    setSelected(payment);
+    setRemarks("");
+    setConfirmedAmount(payment.amount == null ? "" : String(payment.amount));
+    setRejectionReason("other");
+  };
+
+  // Opened from a "New Receipt Submitted" notification: /verify-payments?review=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("review");
+    if (!id) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    getPayments({ id, limit: 1 })
+      .then((result) => {
+        const payment = result?.data?.[0];
+        if (payment) openReview(payment);
+        else showToast("That receipt is no longer available.", "info");
+      })
+      .catch(() => showToast("Could not open that receipt.", "error"));
+    // Runs once when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    fetchPayments();
-  }, [fetchPayments]);
-
-  // Search students
-  const handleSearchStudents = useCallback(async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const results = await searchStudents(searchQuery);
-      setSearchResults(results);
-    } catch (err) {
-      showToast(
-        err.response?.data?.message || "Failed to search students.",
-        "error"
-      );
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [searchQuery, showToast]);
-
-  const filtered = useMemo(() => {
-    if (filter === "All") return payments;
-    return payments.filter((p) => p.status === filter);
-  }, [payments, filter]);
+  const amountIsValid = Number.isFinite(Number(confirmedAmount)) && Number(confirmedAmount) > 0;
 
   const handleApprove = async () => {
-    if (!selected) return;
+    if (!selected || actionLoading) return;
+    if (!amountIsValid) {
+      // OCR often cannot read the amount; the cashier must type it. Point them at
+      // the field instead of leaving a silently disabled button.
+      showToast("Enter the verified amount from the receipt before approving.", "error");
+      amountRef.current?.focus();
+      return;
+    }
     setActionLoading(true);
     try {
-      await approvePayment(selected._id);
+      await approvePayment(selected._id, Number(confirmedAmount));
       showToast("Payment approved successfully.", "success");
       setSelected(null);
       setRemarks("");
+      setConfirmedAmount("");
       setRejectionReason("other");
-      await fetchPayments();
+      refreshNavBadges();
+      // Reload the list in the background; the next receipt can be reviewed
+      // and approved right away without waiting for it.
+      refresh();
     } catch (err) {
       showToast(
         err.response?.data?.message || "Failed to approve payment.",
@@ -122,15 +152,17 @@ const VerifyPayments = () => {
   };
 
   const handleReject = async () => {
-    if (!selected) return;
+    if (!selected || !remarks.trim()) { showToast("Rejection remarks are required.", "error"); return; }
     setActionLoading(true);
     try {
-      await rejectPayment(selected._id, remarks, rejectionReason);
+      await rejectPayment(selected._id, remarks.trim(), rejectionReason);
       showToast("Payment rejected.", "info");
       setSelected(null);
       setRemarks("");
+      setConfirmedAmount("");
       setRejectionReason("other");
-      await fetchPayments();
+      refreshNavBadges();
+      refresh();
     } catch (err) {
       showToast(
         err.response?.data?.message || "Failed to reject payment.",
@@ -141,43 +173,85 @@ const VerifyPayments = () => {
     }
   };
 
-  const handleCreateDirectPayment = async () => {
-    if (!selectedStudent || !directPaymentForm.amount) {
-      showToast("Please select a student and enter an amount.", "error");
-      return;
-    }
-
-    setDirectPaymentLoading(true);
-    try {
-      await createDirectPayment({
-        studentId: selectedStudent.studentId,
-        amount: Number(directPaymentForm.amount),
-        paymentDescription: directPaymentForm.paymentDescription || "Direct Payment",
-        examCoverage: directPaymentForm.examCoverage || null,
-      });
-
-      showToast("Direct payment recorded successfully.", "success");
-      setSelectedStudent(null);
-      setSearchQuery("");
-      setSearchResults([]);
-      setDirectPaymentForm({
-        amount: "",
-        paymentDescription: "",
-        examCoverage: "",
-      });
-      await fetchPayments();
-    } catch (err) {
-      showToast(
-        err.response?.data?.message || "Failed to record direct payment.",
-        "error"
-      );
-    } finally {
-      setDirectPaymentLoading(false);
-    }
-  };
+  const columns = [
+    {
+      key: "studentName",
+      header: "Student ID / Name",
+      priority: "primary",
+      render: (payment) => (
+        <>
+          <p className="text-sm font-bold text-gray-800 group-hover:text-sti-blue">{payment.studentId || "—"}</p>
+          <p className="text-xs text-gray-500">{payment.studentName || "—"}</p>
+        </>
+      ),
+    },
+    {
+      key: "invoiceNumber",
+      header: "Reference",
+      priority: "meta",
+      render: (payment) => payment.referenceNumber || (payment.invoiceNumber ? `#${payment.invoiceNumber}` : "—"),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      priority: "meta",
+      render: (payment) => (payment.amount != null
+        ? `${peso(payment.amount)}${payment.status === "Approved" ? "" : payment.claimedAmount != null ? " (typed)" : " (OCR)"}`
+        : "Needs review"),
+    },
+    {
+      key: "check",
+      header: "Check",
+      priority: "meta",
+      // At-a-glance result of the automatic receipt check.
+      render: (payment) => {
+        if (!payment.ocr) return "—";
+        const flags = payment.ocr.flags?.length || 0;
+        const ok = payment.ocr.amount?.status === "matched";
+        return (
+          <span className={`inline-flex items-center gap-1 text-xs font-bold ${flags ? "text-amber-700" : ok ? "text-green-700" : "text-gray-500"}`}>
+            {flags ? `⚠ ${flags} warning${flags === 1 ? "" : "s"}` : ok ? "✓ Amount found" : "Check manually"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "paymentChannel",
+      header: "Paid via",
+      priority: "meta",
+      render: (payment) => (payment.paymentMethod === "direct" ? "Cashier (direct)" : channelShort(payment.paymentChannel)),
+    },
+    {
+      key: "createdAt",
+      header: "Date",
+      priority: "meta",
+      render: (payment) => formatDate(payment.createdAt),
+    },
+    {
+      key: "status",
+      header: "Status",
+      priority: "badge",
+      render: (payment) => <StatusBadge status={payment.status} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      priority: "action",
+      render: (payment) => (
+        <button
+          type="button"
+          onClick={() => openReview(payment)}
+          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-blue-50 px-3 py-2.5 text-xs font-bold text-sti-blue transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
+          aria-label={`Review payment from ${payment.studentId || payment.studentName}`}
+        >
+          Review
+        </button>
+      ),
+    },
+  ];
 
   const drawerFooter =
-    selected?.status === "Pending" ? (
+    ["Pending", "Need Review"].includes(selected?.status) ? (
       <div className="flex flex-col gap-4">
         {remarks && (
           <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
@@ -189,8 +263,8 @@ const VerifyPayments = () => {
           <button
             type="button"
             onClick={handleReject}
-            disabled={actionLoading}
-            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 min-h-11"
+            disabled={actionLoading || !remarks.trim()}
+            className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60"
           >
             Reject
           </button>
@@ -198,17 +272,23 @@ const VerifyPayments = () => {
             type="button"
             onClick={handleApprove}
             disabled={actionLoading}
-            className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
+            aria-busy={actionLoading}
+            className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:cursor-wait disabled:opacity-60"
           >
             {actionLoading ? <IconLoader className="h-4 w-4" /> : null}
-            Approve
+            {actionLoading ? "Processing…" : "Approve"}
           </button>
         </div>
+        {!amountIsValid && (
+          <p className="text-right text-xs font-semibold text-amber-700">
+            Enter the verified amount above to approve this receipt.
+          </p>
+        )}
       </div>
     ) : null;
 
   return (
-    <div>      
+    <div>
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -245,98 +325,59 @@ const VerifyPayments = () => {
       {tab === "receipts" && (
         <>
           <div className="mb-6 flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={[
-                  "rounded-lg min-h-11 px-4 py-2.5 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-sti-blue/20",
-                  filter === f
-                    ? "bg-sti-blue text-white shadow-[0_4px_14px_rgba(0,61,165,0.35)]"
-                    : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                ].join(" ")}
-              >
-                {f}
-              </button>
-            ))}
+            {FILTERS.map((status) => {
+              const count = statusCounts[status] || 0;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter("status", status === "All" ? "" : status)}
+                  className={[
+                    "relative inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-sti-blue/20",
+                    filter === status
+                      ? "bg-sti-blue text-white shadow-[0_4px_14px_rgba(0,61,165,0.35)]"
+                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                  ].join(" ")}
+                  aria-label={count > 0 ? `${status}, ${count} waiting` : status}
+                >
+                  {status}
+                  {count > 0 && (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-black leading-none text-white ring-2 ring-white">
+                      {formatBadge(count)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    {["Student", "Invoice", "Amount", "Date", "Status", "Actions"].map(
-                      (col) => (
-                        <th
-                          key={col}
-                          className="px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400"
-                        >
-                          {col}
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {loading ? (
-                    <Skeleton variant="table-row" count={5} />
-                  ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={6}>
-                        <EmptyState
-                          icon={IconInbox}
-                          title="No payments found"
-                          description={`No ${filter === "All" ? "" : filter.toLowerCase() + " "}payments to display.`}
-                        />
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map((payment) => (
-                      <tr
-                        key={payment._id}
-                        className="group transition-colors hover:bg-blue-50/30"
-                      >
-                        <td className="whitespace-nowrap px-6 py-4">
-                          <p className="text-sm font-semibold text-gray-800 group-hover:text-sti-blue">
-                            {payment.studentName || "—"}
-                          </p>
-                          <p className="text-xs text-gray-400">{payment.studentId}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                          {payment.invoiceNumber ? `#${payment.invoiceNumber}` : "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">
-                          {payment.amount ? `₱${payment.amount}` : "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                          {formatDate(payment.createdAt)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          <StatusBadge status={payment.status} />
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelected(payment);
-                              setRemarks("");
-                              setRejectionReason("other");
-                            }}
-                            className="inline-flex min-h-11 items-center gap-1 rounded-md bg-blue-50 px-3 py-2.5 text-xs font-bold text-sti-blue transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-                            aria-label={`Review payment from ${payment.studentName || payment.studentId}`}
-                          >
-                            Review
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="mb-6 flex flex-wrap items-end gap-3">
+            <SortSelect sort={sort} order={order} onChange={setSorting} label="Sort by date submitted" />
+            <PaidViaSelect value={filters.channel} onChange={(value) => setStatusFilter("channel", value)} />
+            <DateRangeFilter label="Submitted" from={filters.from} to={filters.to} onChange={setDateRange} />
           </div>
+
+          <DataTable
+            columns={columns}
+            rows={payments}
+            loading={loading}
+            fetching={fetching}
+            skeletonRows={Math.min(limit, 5)}
+            empty={
+              <EmptyState
+                icon={IconInbox}
+                title="No payments found"
+                description={`No ${filter === "All" ? "" : filter.toLowerCase() + " "}payments to display.`}
+              />
+            }
+          />
+
+          <Pagination
+            meta={meta}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            fetching={fetching}
+          />
 
           <Drawer
             open={!!selected}
@@ -358,11 +399,12 @@ const VerifyPayments = () => {
 
                 <dl className="space-y-3 text-sm">
                   {[
-                    ["Student", selected.studentName],
                     ["Student ID", selected.studentId],
-                    ["Invoice", selected.invoiceNumber ? `#${selected.invoiceNumber}` : null],
-                    ["Amount", selected.amount ? `₱${selected.amount}` : null],
+                    ["Student", selected.studentName],
+                    ["Reference", selected.referenceNumber || (selected.invoiceNumber ? `#${selected.invoiceNumber}` : null)],
+                    ["Amount", selected.amount != null ? `${peso(selected.amount)}${selected.status === "Approved" ? "" : selected.claimedAmount != null ? " (typed by student)" : " (OCR estimate)"}` : "Needs review"],
                     ["Description", selected.paymentDescription],
+                    ["Payment mode", selected.paymentMethod === "direct" ? "Cash at cashier (direct)" : channelLabel(selected.paymentChannel)],
                     ["Submitted", formatDate(selected.createdAt)],
                     ["Status", null],
                   ].map(([label, value]) => (
@@ -379,8 +421,24 @@ const VerifyPayments = () => {
                   ))}
                 </dl>
 
-                {selected.status === "Pending" && (
+                <ReceiptCheckSummary ocr={selected.ocr} detailed
+                  claimedAmount={selected.claimedAmount} referenceNumber={selected.referenceNumber} />
+
+                {["Pending", "Need Review"].includes(selected.status) && (
                   <div className="space-y-4 border-t border-gray-200 pt-4">
+                    <div>
+                      <label htmlFor="verified-amount" className="mb-2 block text-sm font-semibold text-gray-700">Verified amount paid (PHP) *</label>
+                      <input id="verified-amount" ref={amountRef} type="number" min="0.01" step="0.01" inputMode="decimal"
+                        value={confirmedAmount}
+                        onChange={(e) => setConfirmedAmount(e.target.value)}
+                        placeholder="Type the amount shown on the receipt"
+                        className={`min-h-11 w-full rounded-lg border px-3 focus:outline-none focus:ring-2 ${
+                          amountIsValid ? "border-gray-200 focus:border-sti-blue focus:ring-sti-blue/20" : "border-amber-400 bg-amber-50/40 focus:ring-amber-400/30"
+                        }`} />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {selected.claimedAmount != null ? "Pre-filled with the amount the student typed. " : ""}Check it against the receipt before approving.
+                      </p>
+                    </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Rejection Reason
@@ -400,7 +458,7 @@ const VerifyPayments = () => {
 
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Remarks to Student (Optional)
+                        Rejection remarks to student *
                       </label>
                       <textarea
                         value={remarks}
@@ -429,192 +487,7 @@ const VerifyPayments = () => {
       )}
 
       {/* Direct Payment Tab */}
-      {tab === "direct" && (
-        <div className="grid gap-6">
-          {/* Search Section */}
-          <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-            <h3 className="mb-4 text-lg font-bold text-gray-800">Search Student</h3>
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Enter student ID or name..."
-                onKeyPress={(e) => e.key === "Enter" && handleSearchStudents()}
-                className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-              />
-              <button
-                type="button"
-                onClick={handleSearchStudents}
-                disabled={searchLoading || !searchQuery.trim()}
-                className="flex items-center gap-2 rounded-lg bg-sti-blue px-6 py-2.5 font-semibold text-white transition hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
-              >
-                {searchLoading ? <IconLoader className="h-4 w-4" /> : null}
-                Search
-              </button>
-            </div>
-          </div>
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-              <div className="divide-y divide-gray-100">
-                {searchResults.map((student) => (
-                  <button
-                    key={student._id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedStudent(student);
-                      setSearchQuery("");
-                      setSearchResults([]);
-                    }}
-                    className="w-full p-4 text-left transition hover:bg-blue-50/50"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold text-gray-800">{student.name}</p>
-                        <p className="text-sm text-gray-600">
-                          ID: {student.studentId}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {student.course} - Year {student.yearLevel}
-                        </p>
-                      </div>
-                      <span className="text-xs font-bold text-sti-blue bg-blue-50 px-3 py-1.5 rounded-full">
-                        Select
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Payment Form */}
-          {selectedStudent && (
-            <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-              <div className="mb-6 pb-6 border-b border-gray-200">
-                <h3 className="mb-3 text-lg font-bold text-gray-800">Selected Student</h3>
-                <div className="space-y-2">
-                  <p>
-                    <span className="font-semibold text-gray-700">Name:</span>{" "}
-                    <span className="text-gray-600">{selectedStudent.name}</span>
-                  </p>
-                  <p>
-                    <span className="font-semibold text-gray-700">Student ID:</span>{" "}
-                    <span className="text-gray-600">{selectedStudent.studentId}</span>
-                  </p>
-                  <p>
-                    <span className="font-semibold text-gray-700">Course:</span>{" "}
-                    <span className="text-gray-600">{selectedStudent.course}</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Amount <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-lg font-semibold text-gray-600">
-                      ₱
-                    </span>
-                    <input
-                      type="number"
-                      value={directPaymentForm.amount}
-                      onChange={(e) =>
-                        setDirectPaymentForm({
-                          ...directPaymentForm,
-                          amount: e.target.value,
-                        })
-                      }
-                      placeholder="0.00"
-                      className="w-full rounded-lg border border-gray-200 pl-8 pr-4 py-2.5 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Exam Coverage (Optional)
-                  </label>
-                  <select
-                    value={directPaymentForm.examCoverage}
-                    onChange={(e) =>
-                      setDirectPaymentForm({
-                        ...directPaymentForm,
-                        examCoverage: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-                  >
-                    <option value="">Select exam coverage...</option>
-                    <option value="Prelim">Prelim</option>
-                    <option value="Midterm">Midterm</option>
-                    <option value="PreFinal">Pre-Final</option>
-                    <option value="Final">Final</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Description
-                  </label>
-                  <input
-                    type="text"
-                    value={directPaymentForm.paymentDescription}
-                    onChange={(e) =>
-                      setDirectPaymentForm({
-                        ...directPaymentForm,
-                        paymentDescription: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Tuition Fee, Lab Fee, etc."
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20"
-                  />
-                </div>
-
-                <div className="flex gap-3 border-t border-gray-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedStudent(null);
-                      setDirectPaymentForm({
-                        amount: "",
-                        paymentDescription: "",
-                        examCoverage: "",
-                      });
-                    }}
-                    disabled={directPaymentLoading}
-                    className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300/20 disabled:opacity-60"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateDirectPayment}
-                    disabled={directPaymentLoading || !directPaymentForm.amount}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:opacity-60"
-                  >
-                    {directPaymentLoading ? <IconLoader className="h-4 w-4" /> : null}
-                    Record Payment
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Info Box */}
-          {!selectedStudent && searchResults.length === 0 && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-6">
-              <p className="text-sm text-blue-700">
-                💡 Use the search box above to find a student and record their direct payment.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      {tab === "direct" && <DirectPaymentPanel onRecorded={refresh} />}
     </div>
   );
 };

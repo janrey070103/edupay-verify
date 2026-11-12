@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const SIZES = { lg: "max-w-lg", xl: "max-w-xl", "2xl": "max-w-2xl" };
+
+const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === "Escape") onClose();
@@ -32,12 +34,12 @@ const Modal = ({ isOpen, onClose, title, children }) => {
       
       {/* Modal panel */}
       <div 
-        className="relative z-10 w-full max-w-lg transform overflow-hidden rounded-2xl bg-white shadow-xl transition-all"
+        className={`relative z-10 flex max-h-[90vh] w-full ${SIZES[size] || SIZES.lg} transform flex-col overflow-hidden rounded-2xl bg-white shadow-xl transition-all`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4 flex items-center justify-between">
+        <div className="shrink-0 border-b border-gray-100 bg-gray-50/50 px-6 py-4 flex items-center justify-between">
           <h3 className="text-lg font-black text-gray-800" id="modal-title">
             {title}
           </h3>
@@ -52,7 +54,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
           </button>
         </div>
         
-        <div className="p-6">
+        <div className="overflow-y-auto p-6">
           {children}
         </div>
       </div>

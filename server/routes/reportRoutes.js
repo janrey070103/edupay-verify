@@ -1,43 +1,14 @@
-const express =
-require("express");
+const express = require("express");
+const router = express.Router();
+const protect = require("../middleware/protect");
+const { getPaymentsReport, getReportSummary } = require("../controllers/reportController");
 
-const router =
-express.Router();
+const reportAccess = (req, res, next) => ["cashier", "super_admin"].includes(req.user.role)
+  ? next() : res.status(403).json({ message: "Access Denied" });
 
-const protect =require("../middleware/protect");
+router.use(protect, reportAccess);
 
-const {
+router.get("/summary", getReportSummary);
+router.get("/payments", getPaymentsReport);
 
- getAllPayments,
- getApprovedPayments,
- getRejectedPayments,
- getFullyPaidStudents
-
-} =
-require(
-"../controllers/reportController"
-);
-
-router.get(
-"/payments",
-getAllPayments
-);
-
-router.get(
-"/approved",
-protect,
-getApprovedPayments
-);
-
-router.get(
-"/rejected",
-getRejectedPayments
-);
-
-router.get(
-"/fullypaid",
-getFullyPaidStudents
-);
-
-module.exports =
-router;
+module.exports = router;

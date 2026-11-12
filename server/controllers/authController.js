@@ -1,13 +1,16 @@
+
 const User = require("../Models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { readNameParts, validNameParts, fullName } = require("../utils/personName");
+const { courseProblem } = require("../utils/courseRules");
+const { findCourse } = require("../services/catalogService");
 
 // Register (public sign-up — always creates student accounts only)
 const register = async (req, res) => {
   try {
     const {
       studentId,
-      name,
       email,
       password,
       course,
@@ -15,11 +18,19 @@ const register = async (req, res) => {
       semester,
       schoolYear,
     } = req.body;
+    const nameParts = readNameParts(req.body);
+    if (!validNameParts(nameParts)) {
+      return res.status(400).json({ message: "First name and last name are required." });
+    }
 
     // Validate required fields
-    if (!studentId || !name || !email || !password) {
+    if (!studentId || !email || !password || !course ||
+        !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 6 ||
+        !["1st Semester", "2nd Semester", "Summer"].includes(semester) ||
+        !/^\d{4}-\d{4}$/.test(String(schoolYear || "")) ||
+        Number(String(schoolYear).slice(5)) !== Number(String(schoolYear).slice(0, 4)) + 1) {
       return res.status(400).json({
-        message: "Student ID, name, email, and password are required.",
+        message: "Complete the required account and academic information.",
       });
     }
 
@@ -35,31 +46,40 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "Student ID already registered." });
     }
 
+    const courseError = await courseProblem(course);
+    if (courseError) return res.status(400).json({ message: courseError });
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Force role to "student" — other roles are created by super_admin only
     // Student accounts start as "pending" and require admin verification
     const user = await User.create({
       studentId,
-      name,
+      ...nameParts,
+      middleName: nameParts.middleName || undefined,
+      name: fullName(nameParts),
       email,
       password: hashedPassword,
       role: "student",
       course,
-      yearLevel,
+      yearLevel: Number(yearLevel),
       semester,
       schoolYear,
       verificationStatus: "pending",
     });
 
+    // The department's Admins act on it; the Super Admin is informed only.
     const Notification = require("../Models/Notification");
-    await Notification.create({
-      studentId: user.studentId,
-      studentName: user.name,
-      recipientRole: "super_admin",
-      title: "New Student Registration",
-      message: `${user.name} (${user.studentId}) has registered and is pending verification.`,
-    });
+    const courseInfo = await findCourse(user.course);
+    const admins = !courseInfo ? [] : await User.find({ role: "admin", isActive: { $ne: false }, department: courseInfo.department })
+      .select("_id");
+    const base = { studentId: user.studentId, studentName: user.name, title: "New Student Registration" };
+    await Notification.insertMany([
+      { ...base, recipientRole: "super_admin",
+        message: `${user.studentId} - ${user.name} (${user.course}) registered and is waiting for ${courseInfo?.department || "department"} Admin verification.` },
+      ...admins.map((admin) => ({ ...base, recipientRole: "admin", recipientUserId: admin._id,
+        message: `${user.studentId} - ${user.name} (${user.course}) registered and is pending your verification.` })),
+    ]);
 
     // Do NOT issue a JWT — account must be verified by admin first
     res.status(201).json({
@@ -161,7 +181,34 @@ const login = async (req, res) => {
   }
 };
 
+// Any logged-in user changes their own password; the current one is required.
+const changeMyPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Enter your current password and a new password." });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "New password must be different from the current one." });
+    }
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found." });
+    if (!await bcrypt.compare(currentPassword, user.password)) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    return res.json({ message: "Password changed." });
+  } catch (error) {
+    return res.status(500).json({ message: "Could not change the password." });
+  }
+};
+
 module.exports = {
   register,
   login,
+  changeMyPassword,
 };

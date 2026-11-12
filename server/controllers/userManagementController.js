@@ -1,14 +1,88 @@
 const User = require("../Models/User");
 const Notification = require("../Models/Notification");
 const bcrypt = require("bcryptjs");
+const Payment = require("../Models/Payments");
+const Ledger = require("../Models/Ledger");
+const ExamPermit = require("../Models/ExamPermit");
+const { escapeRegex, paginate, readDateRange, readPaging, readSort } = require("../utils/pagination");
+const { hasNameParts, readNameParts, validNameParts } = require("../utils/personName");
+const { courseScope, inScope, resolveCourse, allCoursePatterns } = require("../utils/adminScope");
 
-const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher"];
+// Students whose stored course matches no catalogue course (old typed values).
+// No Admin sees them; the Super Admin corrects them in User Management.
+const unlistedCourseFilter = async () => ({ role: "student", $nor: [{ course: { $in: await allCoursePatterns() } }] });
+const { courseProblem } = require("../utils/courseRules");
+const { DEPARTMENT_CODES } = require("../config/catalog");
+
+const DEPARTMENT_REQUIRED = "Choose the department this Admin manages.";
+const OUT_OF_SCOPE = "This student belongs to another department.";
+
+const SUPER_ADMIN_TAKEN = "Only one Super Admin account is allowed.";
+const NAME_REQUIRED = "First name and last name are required.";
+
+const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher", "super_admin"];
+const validEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || ""));
+const validAcademics = ({ course, yearLevel, semester, schoolYear }) =>
+  Boolean(String(course || "").trim() && Number.isInteger(Number(yearLevel)) && Number(yearLevel) >= 1 &&
+    Number(yearLevel) <= 6 && ["1st Semester", "2nd Semester", "Summer"].includes(semester) &&
+    /^\d{4}-\d{4}$/.test(String(schoolYear || "")) &&
+    Number(String(schoolYear).slice(5)) === Number(String(schoolYear).slice(0, 4)) + 1);
 
 // GET all users (excluding passwords)
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.json(users);
+    // Filters other than role; role counts for the pills are computed on these.
+    const base = {};
+    const created = readDateRange(req.query);
+    if (created) base.createdAt = created;
+    const search = String(req.query.search || "").trim().slice(0, 64);
+    if (search) {
+      const pattern = new RegExp(escapeRegex(search), "i");
+      base.$or = [{ name: pattern }, { firstName: pattern }, { lastName: pattern },
+        { email: pattern }, { studentId: pattern }];
+    }
+    const role = ALLOWED_ROLES.includes(req.query.role) ? req.query.role : "";
+    const courseIssue = req.query.courseIssue === "1";
+    // "Course not in list" only applies to students; asking for it together with
+    // another role is a contradiction, so it matches nothing instead of silently
+    // switching to students.
+    const query = { ...base,
+      ...(courseIssue ? await unlistedCourseFilter() : {}),
+      ...(role ? { role: courseIssue && role !== "student" ? "__none__" : role } : {}) };
+    const paging = readPaging(req.query, { limit: 25 });
+    let sort = readSort(req.query, ["name", "createdAt", "email", "role"], "createdAt", "desc");
+    if (req.query.sort === "name") {
+      // Name ordering is surname first; `name` breaks ties for older accounts
+      // that were created before separate name fields existed.
+      const direction = sort.name;
+      sort = { lastName: direction, firstName: direction, name: direction, _id: direction };
+    }
+    // Case-insensitive ordering matches the previous client-side name sort.
+    const collation = req.query.sort === "name" ? { locale: "en", strength: 1 } : undefined;
+    const [result, grouped] = await Promise.all([
+      paginate(User, query, paging, sort, { select: "-password", collation }),
+      User.aggregate([{ $match: courseIssue ? { ...base, ...await unlistedCourseFilter() } : base },
+        { $group: { _id: "$role", count: { $sum: 1 } } }]),
+    ]);
+    // Per-role totals under the current date/search filters, for the role pills.
+    const roleCounts = Object.fromEntries(ALLOWED_ROLES.map((item) => [item, 0]));
+    grouped.forEach((row) => { if (row._id in roleCounts) roleCounts[row._id] = row.count; });
+    roleCounts.all = grouped.reduce((sum, row) => sum + row.count, 0);
+    res.json({ ...result, meta: { ...result.meta, roleCounts } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getUserSummary = async (_req, res) => {
+  try {
+    const [totalUsers, activeStudents, pendingStudents, unlistedCourse] = await Promise.all([
+      User.countDocuments({}),
+      User.countDocuments({ role: "student", isActive: { $ne: false } }),
+      User.countDocuments({ role: "student", verificationStatus: "pending" }),
+      User.countDocuments(await unlistedCourseFilter()),
+    ]);
+    res.json({ totalUsers, activeStudents, pendingStudents, unlistedCourse });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -17,14 +91,20 @@ const getAllUsers = async (req, res) => {
 // GET pending students (verificationStatus === "pending")
 const getPendingStudents = async (req, res) => {
   try {
-    const students = await User.find({
-      role: "student",
-      verificationStatus: "pending",
-    })
-      .select("-password")
-      .sort({ createdAt: -1 });
-
-    res.json(students);
+    // Each Admin sees only students of courses in their department.
+    const query = { role: "student", verificationStatus: "pending", $and: [await courseScope(req)] };
+    const search = String(req.query.search || "").trim().slice(0, 64);
+    if (search) {
+      const pattern = new RegExp(escapeRegex(search), "i");
+      query.$and.push({ $or: [{ name: pattern }, { firstName: pattern }, { lastName: pattern },
+        { email: pattern }, { studentId: pattern }] });
+    }
+    const created = readDateRange(req.query);
+    if (created) query.createdAt = created;
+    const paging = readPaging(req.query, { limit: 20 });
+    // Oldest first by default: the students who have waited longest come first.
+    const sort = readSort(req.query, ["name", "createdAt", "email"], "createdAt", "asc");
+    res.json(await paginate(User, query, paging, sort, { select: "-password" }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -43,10 +123,15 @@ const verifyStudent = async (req, res) => {
     if (user.role !== "student") {
       return res.status(400).json({ message: "Only student accounts can be verified." });
     }
+    if (!await inScope(req, user.course)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     if (user.verificationStatus === "verified") {
       return res.status(400).json({ message: "Student is already verified." });
     }
+
+    // Store the official code when an older typed value was matched ("BPED" -> "BPEd").
+    const officialCourse = await resolveCourse(user.course);
+    if (officialCourse && officialCourse.code !== user.course) user.course = officialCourse.code;
 
     user.verificationStatus = "verified";
     user.verifiedBy = req.user.id;
@@ -86,6 +171,7 @@ const rejectStudent = async (req, res) => {
     if (user.role !== "student") {
       return res.status(400).json({ message: "Only student accounts can be rejected." });
     }
+    if (!await inScope(req, user.course)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     if (user.verificationStatus === "rejected") {
       return res.status(400).json({ message: "Student is already rejected." });
@@ -118,15 +204,31 @@ const rejectStudent = async (req, res) => {
   }
 };
 
-// POST create new user (cannot create super_admin)
+// POST create a user (only an authenticated super admin can reach this route)
 const createUser = async (req, res) => {
   try {
-    const { studentId, name, email, password, role, course, yearLevel, semester, schoolYear } = req.body;
+    const { studentId, email, password, role, course, yearLevel, semester, schoolYear } = req.body;
+    const nameParts = readNameParts(req.body);
 
     // Validate required fields
-    if (!studentId || !name || !email || !password) {
-      return res.status(400).json({ message: "studentId, name, email, and password are required." });
+    if (!validNameParts(nameParts)) return res.status(400).json({ message: NAME_REQUIRED });
+    if (!validEmail(email) || !password || password.length < 6 || !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ message: "Choose a role and enter a valid email and a password of at least 6 characters." });
     }
+    if (role === "student" && (!studentId || !validAcademics(req.body))) {
+      return res.status(400).json({ message: "Student ID and valid academic details are required." });
+    }
+    if (role === "student") {
+      const problem = await courseProblem(req.body.course);
+      if (problem) return res.status(400).json({ message: problem });
+    }
+    if (role === "admin" && !DEPARTMENT_CODES.includes(req.body.department)) {
+      return res.status(400).json({ message: DEPARTMENT_REQUIRED });
+    }
+    if (role === "super_admin" && await User.exists({ role: "super_admin" })) {
+      return res.status(409).json({ message: SUPER_ADMIN_TAKEN });
+    }
+    if (studentId && await User.exists({ studentId })) return res.status(409).json({ message: "ID already exists." });
 
     // Check for duplicate email
     const existing = await User.findOne({ email });
@@ -134,22 +236,25 @@ const createUser = async (req, res) => {
       return res.status(400).json({ message: "Email already exists." });
     }
 
-    // Force-override: cannot create super_admin
-    const safeRole = ALLOWED_ROLES.includes(role) ? role : "student";
+    // Role has already been checked against the supported list.
+    const safeRole = role;
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Users created by super_admin are auto-verified
     const user = await User.create({
-      studentId,
-      name,
+      studentId: studentId || undefined,
+      ...nameParts,
+      middleName: nameParts.middleName || undefined,
+      name: [nameParts.firstName, nameParts.middleName, nameParts.lastName].filter(Boolean).join(" "),
       email,
       password: hashedPassword,
       role: safeRole,
-      course,
-      yearLevel,
-      semester,
-      schoolYear,
+      course: safeRole === "student" ? course.trim() : undefined,
+      department: safeRole === "admin" ? req.body.department : undefined,
+      yearLevel: safeRole === "student" ? Number(yearLevel) : undefined,
+      semester: safeRole === "student" ? semester.trim() : undefined,
+      schoolYear: safeRole === "student" ? schoolYear.trim() : undefined,
       isActive: true,
       verificationStatus: "verified",
     });
@@ -158,11 +263,12 @@ const createUser = async (req, res) => {
     delete result.password;
 
     // Send a welcome notification to the new user
-    if (["student", "cashier", "teacher"].includes(safeRole)) {
+    if (["student", "cashier", "teacher", "admin"].includes(safeRole)) {
       await Notification.create({
         studentId: user.studentId,
         studentName: user.name,
         recipientRole: safeRole,
+        recipientUserId: user._id,
         title: "Welcome to EduPay Verify",
         message: `Your ${safeRole} account has been created by the administrator. You can now log in and start using the system.`,
       });
@@ -170,11 +276,12 @@ const createUser = async (req, res) => {
 
     res.status(201).json(result);
   } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.role) return res.status(409).json({ message: SUPER_ADMIN_TAKEN });
     res.status(500).json({ message: error.message });
   }
 };
 
-// PATCH update user (cannot assign super_admin role)
+// PATCH update user
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -194,6 +301,20 @@ const updateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
+    if ((email !== undefined && !validEmail(email)) || (password && password.length < 6)) {
+      return res.status(400).json({ message: "Enter a valid email and a password of at least 6 characters." });
+    }
+    if (user.role === "student" && ((studentId !== undefined && studentId !== user.studentId) ||
+        (role !== undefined && role !== "student"))) {
+      const hasRecords = await Promise.all([
+        Payment.exists({ studentId: user.studentId }), Ledger.exists({ studentId: user.studentId }),
+        ExamPermit.exists({ studentId: user.studentId }),
+      ]);
+      if (hasRecords.some(Boolean)) return res.status(409).json({ message: "Student ID or role cannot change while financial or permit records exist." });
+    }
+    if (studentId && studentId !== user.studentId && await User.exists({ studentId, _id: { $ne: id } })) {
+      return res.status(409).json({ message: "ID already exists." });
+    }
 
     // Check duplicate email (if changing)
     if (email && email !== user.email) {
@@ -203,18 +324,56 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // Cannot assign super_admin role
+    // Exactly one super admin: it cannot be demoted, and nobody else can be promoted.
+    if (role !== undefined && role !== user.role) {
+      if (user.role === "super_admin") {
+        return res.status(409).json({ message: "The Super Admin's role cannot be changed." });
+      }
+      if (role === "super_admin" && await User.exists({ role: "super_admin", _id: { $ne: id } })) {
+        return res.status(409).json({ message: SUPER_ADMIN_TAKEN });
+      }
+    }
+
     if (role !== undefined) {
       user.role = ALLOWED_ROLES.includes(role) ? role : user.role;
     }
 
-    if (name !== undefined) user.name = name;
+    // Admins manage exactly one department; other roles carry none.
+    if (user.role === "admin") {
+      const department = req.body.department !== undefined ? req.body.department : user.department;
+      if (!DEPARTMENT_CODES.includes(department)) return res.status(400).json({ message: DEPARTMENT_REQUIRED });
+      user.department = department;
+    } else {
+      user.department = undefined;
+    }
+
+    if (hasNameParts(req.body)) {
+      const parts = readNameParts(req.body, user);
+      if (!validNameParts(parts)) return res.status(400).json({ message: NAME_REQUIRED });
+      user.firstName = parts.firstName;
+      user.middleName = parts.middleName || undefined;
+      user.lastName = parts.lastName;
+    } else if (name !== undefined) {
+      user.name = name;
+    }
     if (email !== undefined) user.email = email;
-    if (studentId !== undefined) user.studentId = studentId;
-    if (course !== undefined) user.course = course;
-    if (yearLevel !== undefined) user.yearLevel = yearLevel;
-    if (semester !== undefined) user.semester = semester;
-    if (schoolYear !== undefined) user.schoolYear = schoolYear;
+    if (studentId !== undefined) user.studentId = studentId || undefined;
+    if (user.role === "student") {
+      const academic = { course: course ?? user.course, yearLevel: yearLevel ?? user.yearLevel,
+        semester: semester ?? user.semester, schoolYear: schoolYear ?? user.schoolYear };
+      if (!user.studentId || !validAcademics(academic)) return res.status(400).json({ message: "Student ID and valid academic details are required." });
+      // Older free-text courses may be kept as-is; any new value must be a catalogue course.
+      if (course !== undefined && course !== user.course) {
+        const problem = await courseProblem(academic.course);
+        if (problem) return res.status(400).json({ message: problem });
+      }
+      if (course !== undefined) user.course = course.trim();
+      if (yearLevel !== undefined) user.yearLevel = Number(yearLevel);
+      if (semester !== undefined) user.semester = semester.trim();
+      if (schoolYear !== undefined) user.schoolYear = schoolYear.trim();
+    } else if (role && role !== "student") {
+      user.course = undefined; user.yearLevel = undefined; user.semester = undefined; user.schoolYear = undefined;
+    }
     if (password && password.trim() !== "") {
       user.password = await bcrypt.hash(password, 10);
     }
@@ -226,6 +385,7 @@ const updateUser = async (req, res) => {
 
     res.json(result);
   } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.role) return res.status(409).json({ message: SUPER_ADMIN_TAKEN });
     res.status(500).json({ message: error.message });
   }
 };
@@ -256,59 +416,98 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
-// PATCH deactivate user (soft delete — cannot deactivate self)
+// PATCH archive user (soft delete: blocks login, keeps all records; cannot archive self)
 const deactivateUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Cannot deactivate yourself
     if (req.user.id === id) {
-      return res.status(400).json({ message: "You cannot deactivate your own account." });
+      return res.status(400).json({ message: "You cannot archive your own account." });
     }
 
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
+    if (user.isActive === false) {
+      return res.status(400).json({ message: "User is already archived." });
+    }
 
     user.isActive = false;
     await user.save();
 
-    // Notify the user that their account has been deactivated
-    if (["student", "cashier", "teacher"].includes(user.role)) {
+    if (["student", "cashier", "teacher", "admin"].includes(user.role)) {
       await Notification.create({
         studentId: user.studentId,
         studentName: user.name,
         recipientRole: user.role,
-        title: "Account Deactivated",
-        message: "Your account has been deactivated by the administrator. Please contact support if you believe this is an error.",
+        recipientUserId: user._id,
+        title: "Account Archived",
+        message: "Your account has been archived by the administrator. Please contact support if you believe this is an error.",
       });
     }
 
-    res.json({ message: "User deactivated successfully." });
+    res.json({ message: "User archived successfully." });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// PATCH unarchive user: restores login with the same records.
+const activateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found." });
+    if (user.isActive !== false) return res.status(400).json({ message: "User is not archived." });
+
+    user.isActive = true;
+    await user.save();
+
+    if (["student", "cashier", "teacher", "admin"].includes(user.role)) {
+      await Notification.create({
+        studentId: user.studentId,
+        studentName: user.name,
+        recipientRole: user.role,
+        recipientUserId: user._id,
+        title: "Account Restored",
+        message: "Your account has been restored by the administrator. You can log in again.",
+      });
+    }
+
+    res.json({ message: "User unarchived successfully." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Active teachers for proctor assignment (department Admins). Teachers are not
+// department-scoped: any active teacher can proctor any exam.
+const listTeachers = async (_req, res) => {
+  try {
+    const teachers = await User.find({ role: "teacher", isActive: { $ne: false } })
+      .select("name firstName middleName lastName email").sort({ lastName: 1, name: 1 }).limit(500).lean();
+    res.json(teachers);
+  } catch (error) {
+    res.status(500).json({ message: "Could not load teachers." });
   }
 };
 
 // Search for students by ID or name (for cashier direct payment validation)
 const searchStudents = async (req, res) => {
   try {
-    const { query } = req.query;
-
-    if (!query || query.trim() === "") {
-      return res.status(400).json({ message: "Search query is required." });
+    const query = String(req.query.query || "").trim().slice(0, 64);
+    if (query.length < 2) {
+      return res.status(400).json({ message: "Type at least 2 characters to search." });
     }
 
+    // Typed text is matched literally (escaped), never run as a pattern.
+    const pattern = new RegExp(escapeRegex(query), "i");
     const students = await User.find({
       role: "student",
-      $or: [
-        { studentId: { $regex: query, $options: "i" } },
-        { name: { $regex: query, $options: "i" } },
-        { email: { $regex: query, $options: "i" } },
-      ],
+      $or: [{ studentId: pattern }, { name: pattern }, { firstName: pattern }, { lastName: pattern }, { email: pattern }],
     })
-      .select("-password")
+      .select("studentId name firstName middleName lastName email course yearLevel semester schoolYear isActive verificationStatus")
+      .sort({ lastName: 1, name: 1 })
       .limit(10);
 
     res.json(students);
@@ -319,6 +518,7 @@ const searchStudents = async (req, res) => {
 
 module.exports = {
   getAllUsers,
+  getUserSummary,
   getPendingStudents,
   verifyStudent,
   rejectStudent,
@@ -326,5 +526,7 @@ module.exports = {
   updateUser,
   resetUserPassword,
   deactivateUser,
+  activateUser,
+  listTeachers,
   searchStudents,
 };

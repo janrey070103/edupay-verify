@@ -65,3 +65,9 @@ export const getExamScheduleReport = async (year, month, examType) => {
   });
   return res.data;
 };
+
+// Student: own exams as calendar events (with proctor verification details).
+export const getMyExamCalendar = async () => (await API.get("/exams/student/calendar")).data;
+
+// Teacher: assigned exams as calendar events, with the students verified for each.
+export const getTeacherExamCalendar = async () => (await API.get("/exams/teacher/calendar")).data;

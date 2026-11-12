@@ -17,7 +17,9 @@ import PendingStudents from "./pages/PendingStudents";
 import TeacherProctor from "./pages/TeacherProctor";
 import ExamSchedule from "./pages/ExamSchedule";
 import AssignedExams from "./pages/AssignedExams";
-import ExamScheduleReport from "./pages/ExamScheduleReport";
+import StudentMyExams from "./pages/StudentMyExams";
+import AdminDashboard from "./pages/AdminDashboard";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
@@ -51,7 +53,7 @@ function App() {
           <Route
             path="/notifications"
             element={
-              <ProtectedRoute allowedRoles={["student", "cashier", "super_admin", "teacher"]}>
+              <ProtectedRoute allowedRoles={["student", "cashier", "super_admin", "teacher", "admin"]}>
                 <Notifications />
               </ProtectedRoute>
             }
@@ -72,6 +74,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/student-exams" element={<ProtectedRoute allowedRoles={["student"]}><StudentMyExams /></ProtectedRoute>} />
           <Route
             path="/cashier"
             element={
@@ -107,7 +110,7 @@ function App() {
           <Route
             path="/reports"
             element={
-              <ProtectedRoute allowedRoles={["cashier", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["cashier", "super_admin", "admin"]}>
                 <Reports />
               </ProtectedRoute>
             }
@@ -131,7 +134,7 @@ function App() {
           <Route
             path="/pending-students"
             element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <PendingStudents />
               </ProtectedRoute>
             }
@@ -139,19 +142,13 @@ function App() {
           <Route
             path="/exam-schedule"
             element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <ExamSchedule />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/exam-schedule-report"
-            element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
-                <ExamScheduleReport />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute allowedRoles={["student", "cashier", "teacher", "admin", "super_admin"]}><Settings /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

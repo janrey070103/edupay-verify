@@ -5,8 +5,7 @@
  *   node server/seedSuperAdmin.js
  *
  * Environment:
- *   Requires the same .env (or MONGO_URI) used by the server.
- *   Defaults to mongodb://localhost:27017/edupay-verify
+ *   Requires MONGO_URI, SUPER_ADMIN_EMAIL, and SUPER_ADMIN_PASSWORD.
  */
 
 require("dotenv").config();
@@ -14,33 +13,32 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("./Models/User");
 
-const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://localhost:27017/edupay-verify";
+const MONGO_URI = process.env.MONGO_URI;
 
 const SUPER_ADMIN = {
-  studentId: "SA-001",
-  name: "Super Admin",
-  email: "superadmin@sti.edu",
-  password: "Admin@123", // change after first login
+  studentId: process.env.SUPER_ADMIN_ID || undefined,
+  name: process.env.SUPER_ADMIN_NAME || "Super Admin",
+  email: process.env.SUPER_ADMIN_EMAIL,
   role: "super_admin",
   isActive: true,
 };
 
 async function seed() {
   try {
+    if (!process.env.MONGO_URI || !SUPER_ADMIN.email || !process.env.SUPER_ADMIN_PASSWORD) {
+      throw new Error("MONGO_URI, SUPER_ADMIN_EMAIL, and SUPER_ADMIN_PASSWORD are required.");
+    }
     await mongoose.connect(MONGO_URI);
     console.log("Connected to MongoDB");
 
     const existing = await User.findOne({ role: "super_admin" });
     if (existing) {
-      console.log(
-        `Super admin already exists: ${existing.email} (id: ${existing._id})`
-      );
+      console.log("Super admin already exists.");
       process.exit(0);
     }
 
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(SUPER_ADMIN.password, salt);
+    const hashedPassword = await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD, salt);
 
     const user = await User.create({
       ...SUPER_ADMIN,
@@ -48,10 +46,7 @@ async function seed() {
     });
 
     console.log("Super admin created successfully:");
-    console.log(`  Email:    ${user.email}`);
-    console.log(`  Password: ${SUPER_ADMIN.password}`);
     console.log(`  ID:       ${user._id}`);
-    console.log("\nPlease change the password after first login.");
     process.exit(0);
   } catch (err) {
     console.error("Seed failed:", err.message);

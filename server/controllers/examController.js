@@ -1,11 +1,34 @@
 const Exam = require("../Models/Exam");
 const User = require("../Models/User");
 const Notification = require("../Models/Notification");
+const { courseScope, inScope, ownsCourse } = require("../utils/adminScope");
+
+// Exams with no course (created before courses existed) stay visible so an
+// Admin can assign one; everything else is limited to the Admin's department.
+const EXAM_SCOPE = { includeUnassigned: true };
+
+// Exam times: picked as 24-hour "HH:mm" (start before end), or none when the
+// schedule text was typed manually.
+const readTimes = (startTime, endTime) => {
+  const valid = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ""));
+  if (!startTime && !endTime) return { ok: true, startTime: undefined, endTime: undefined };
+  if (!valid(startTime) || !valid(endTime) || endTime <= startTime) return { ok: false };
+  return { ok: true, startTime, endTime };
+};
+const TIME_ERROR = "Pick a valid start and end time (the end must be after the start).";
+
+const OUT_OF_SCOPE = "This exam belongs to another department.";
+const COURSE_REQUIRED = "Choose a course from your department.";
 
 // Create exam
 const createExam = async (req, res) => {
   try {
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, room, capacity, courseYear, courseSection, course } = req.body;
+    const times = readTimes(req.body.startTime, req.body.endTime);
+    if (!times.ok) return res.status(400).json({ message: TIME_ERROR });
+
+    // Every new exam belongs to a course of the Admin's own department.
+    if (!await ownsCourse(req, course)) return res.status(400).json({ message: COURSE_REQUIRED });
 
     // Validate required fields
     if (!examDate || !examType || !subject || !subjectCode || !schedule) {
@@ -18,6 +41,7 @@ const createExam = async (req, res) => {
     const existing = await Exam.findOne({
       examDate: new Date(examDate),
       subjectCode,
+      course,
     });
 
     if (existing) {
@@ -31,9 +55,14 @@ const createExam = async (req, res) => {
       examType,
       subject,
       subjectCode,
+      course,
       schedule,
+      startTime: times.startTime,
+      endTime: times.endTime,
       room: room || null,
       capacity: capacity || null,
+      courseYear: courseYear ? Number(courseYear) : undefined,
+      courseSection: courseSection || undefined,
       createdBy: req.user.id,
     });
 
@@ -46,7 +75,7 @@ const createExam = async (req, res) => {
 // Get all exams
 const getAllExams = async (req, res) => {
   try {
-    const exams = await Exam.find()
+    const exams = await Exam.find(await courseScope(req, "course", EXAM_SCOPE))
       .populate("proctorId", "name email studentId")
       .populate("createdBy", "name email")
       .sort({ examDate: 1 });
@@ -74,6 +103,7 @@ const getExamsByDate = async (req, res) => {
 
     const exams = await Exam.find({
       examDate: { $gte: startDate, $lte: endDate },
+      $and: [await courseScope(req, "course", EXAM_SCOPE)],
     })
       .populate("proctorId", "name email studentId")
       .sort({ schedule: 1 });
@@ -105,13 +135,17 @@ const getExamsForTeacher = async (req, res) => {
 const updateExam = async (req, res) => {
   try {
     const { id } = req.params;
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity, status } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, room, capacity, status, courseYear, courseSection, course } = req.body;
+    const timesGiven = req.body.startTime !== undefined || req.body.endTime !== undefined;
+    const times = readTimes(req.body.startTime, req.body.endTime);
+    if (timesGiven && !times.ok) return res.status(400).json({ message: TIME_ERROR });
 
     const exam = await Exam.findById(id);
 
     if (!exam) {
       return res.status(404).json({ message: "Exam not found." });
     }
+    if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     // Check if updating subject code and date creates duplicate
     if (
@@ -131,13 +165,21 @@ const updateExam = async (req, res) => {
       }
     }
 
+    if (course !== undefined && course !== exam.course) {
+      if (!await ownsCourse(req, course)) return res.status(400).json({ message: COURSE_REQUIRED });
+      exam.course = course;
+    }
     if (examDate) exam.examDate = new Date(examDate);
     if (examType) exam.examType = examType;
     if (subject) exam.subject = subject;
     if (subjectCode) exam.subjectCode = subjectCode;
     if (schedule) exam.schedule = schedule;
+    // Switching to a typed schedule clears picked times so the two never disagree.
+    if (timesGiven) { exam.startTime = times.startTime; exam.endTime = times.endTime; }
     if (room !== undefined) exam.room = room;
     if (capacity !== undefined) exam.capacity = capacity;
+    if (courseYear !== undefined) exam.courseYear = courseYear ? Number(courseYear) : undefined;
+    if (courseSection !== undefined) exam.courseSection = courseSection || undefined;
     if (status) exam.status = status;
 
     await exam.save();
@@ -148,6 +190,7 @@ const updateExam = async (req, res) => {
       if (teacher) {
         await Notification.create({
           studentId: teacher.studentId,
+          recipientUserId: teacher._id,
           studentName: teacher.name,
           recipientRole: "teacher",
           title: "Exam Schedule Updated",
@@ -177,6 +220,7 @@ const assignProctor = async (req, res) => {
     if (!exam) {
       return res.status(404).json({ message: "Exam not found." });
     }
+    if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     const teacher = await User.findById(proctorId);
 
@@ -193,6 +237,7 @@ const assignProctor = async (req, res) => {
     // Create notification for teacher
     await Notification.create({
       studentId: teacher.studentId,
+      recipientUserId: teacher._id,
       studentName: teacher.name,
       recipientRole: "teacher",
       title: "New Exam Assigned",
@@ -215,6 +260,7 @@ const removeProctor = async (req, res) => {
     if (!exam) {
       return res.status(404).json({ message: "Exam not found." });
     }
+    if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     // Look up the teacher before clearing so we can notify them
     const previousProctorId = exam.proctorId;
@@ -233,6 +279,7 @@ const removeProctor = async (req, res) => {
     if (teacher) {
       await Notification.create({
         studentId: teacher.studentId,
+        recipientUserId: teacher._id,
         studentName: teacher.name,
         recipientRole: "teacher",
         title: "Exam Assignment Removed",
@@ -256,6 +303,7 @@ const deleteExam = async (req, res) => {
     if (!exam) {
       return res.status(404).json({ message: "Exam not found." });
     }
+    if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
     // Notify the assigned proctor before deleting
     if (exam.proctorId) {
@@ -263,6 +311,7 @@ const deleteExam = async (req, res) => {
       if (teacher) {
         await Notification.create({
           studentId: teacher.studentId,
+          recipientUserId: teacher._id,
           studentName: teacher.name,
           recipientRole: "teacher",
           title: "Exam Cancelled",
@@ -293,6 +342,7 @@ const getExamsForMonth = async (req, res) => {
 
     const exams = await Exam.find({
       examDate: { $gte: startDate, $lte: endDate },
+      $and: [await courseScope(req, "course", EXAM_SCOPE)],
     })
       .populate("proctorId", "name email")
       .sort({ examDate: 1 });
@@ -319,6 +369,7 @@ const getExamScheduleReport = async (req, res) => {
     if (examType) {
       query.examType = examType;
     }
+    query.$and = [await courseScope(req, "course", EXAM_SCOPE)];
 
     const exams = await Exam.find(query)
       .populate("proctorId", "name email")
