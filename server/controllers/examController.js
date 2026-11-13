@@ -2,6 +2,25 @@ const Exam = require("../Models/Exam");
 const User = require("../Models/User");
 const Notification = require("../Models/Notification");
 const { courseScope, inScope, ownsCourse } = require("../utils/adminScope");
+const { examScheduleProblem, examPeriodProblem, manilaMonthRange } = require("../config/examWindows");
+
+const EXAM_KINDS = ["Regular", "Special"];
+const manilaDayKey = (value) => new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+
+/**
+ * Manila day keys of the department's regular exams for this term and month
+ * (not cancelled, not the exam being edited): they define the 4-day period.
+ */
+const regularExamDays = async (req, { examDate, examType }, excludeId) => {
+  const { start, end } = manilaMonthRange(examDate);
+  const exams = await Exam.find({
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+    examType, examKind: { $ne: "Special" }, status: { $ne: "Cancelled" },
+    examDate: { $gte: start, $lt: end },
+    $and: [await courseScope(req, "course")],
+  }).select("examDate").lean();
+  return exams.map((exam) => manilaDayKey(exam.examDate));
+};
 
 // Exams with no course (created before courses existed) stay visible so an
 // Admin can assign one; everything else is limited to the Admin's department.
@@ -24,6 +43,8 @@ const COURSE_REQUIRED = "Choose a course from your department.";
 const createExam = async (req, res) => {
   try {
     const { examDate, examType, subject, subjectCode, schedule, room, capacity, courseYear, courseSection, course } = req.body;
+    const examKind = req.body.examKind || "Regular";
+    if (!EXAM_KINDS.includes(examKind)) return res.status(400).json({ message: "Choose Regular or Special exam." });
     const times = readTimes(req.body.startTime, req.body.endTime);
     if (!times.ok) return res.status(400).json({ message: TIME_ERROR });
 
@@ -36,6 +57,13 @@ const createExam = async (req, res) => {
         message: "examDate, examType, subject, subjectCode, and schedule are required.",
       });
     }
+
+    // Not in the past, and the term must match the month the date falls in.
+    const scheduleProblem = examScheduleProblem({ examDate, examType, startTime: times.startTime });
+    if (scheduleProblem) return res.status(400).json({ message: scheduleProblem });
+    // Regular exams inside the term's 4-day period; Special exams only after it.
+    const periodProblem = examPeriodProblem({ examDate, examType, examKind }, await regularExamDays(req, { examDate, examType }));
+    if (periodProblem) return res.status(400).json({ message: periodProblem });
 
     // Check if exam already exists for this date and subject code
     const existing = await Exam.findOne({
@@ -53,6 +81,7 @@ const createExam = async (req, res) => {
     const exam = await Exam.create({
       examDate: new Date(examDate),
       examType,
+      examKind,
       subject,
       subjectCode,
       course,
@@ -147,6 +176,30 @@ const updateExam = async (req, res) => {
     }
     if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
+    // Moving the date or time must not land in the past; changing the date or
+    // term must keep the term matching the date's month. Other edits (room,
+    // status, proctor...) are allowed on past exams.
+    const nextDate = examDate ? new Date(examDate) : exam.examDate;
+    const dayOf = (value) => new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+    const dateChanged = Boolean(examDate) && dayOf(examDate) !== dayOf(exam.examDate);
+    const typeChanged = Boolean(examType) && examType !== exam.examType;
+    const timeChanged = timesGiven && times.startTime && times.startTime !== exam.startTime;
+    const nextKind = req.body.examKind || exam.examKind || "Regular";
+    if (!EXAM_KINDS.includes(nextKind)) return res.status(400).json({ message: "Choose Regular or Special exam." });
+    const kindChanged = nextKind !== (exam.examKind || "Regular");
+    if (dateChanged || typeChanged || timeChanged || kindChanged) {
+      const scheduleProblem = examScheduleProblem(
+        { examDate: nextDate, examType: examType || exam.examType, startTime: timesGiven ? times.startTime : exam.startTime },
+        new Date(), { checkPast: dateChanged || timeChanged });
+      if (scheduleProblem) return res.status(400).json({ message: scheduleProblem });
+    }
+    if (dateChanged || typeChanged || kindChanged) {
+      const nextType = examType || exam.examType;
+      const periodProblem = examPeriodProblem({ examDate: nextDate, examType: nextType, examKind: nextKind },
+        await regularExamDays(req, { examDate: nextDate, examType: nextType }, exam._id));
+      if (periodProblem) return res.status(400).json({ message: periodProblem });
+    }
+
     // Check if updating subject code and date creates duplicate
     if (
       (subjectCode && subjectCode !== exam.subjectCode) ||
@@ -171,6 +224,7 @@ const updateExam = async (req, res) => {
     }
     if (examDate) exam.examDate = new Date(examDate);
     if (examType) exam.examType = examType;
+    exam.examKind = nextKind;
     if (subject) exam.subject = subject;
     if (subjectCode) exam.subjectCode = subjectCode;
     if (schedule) exam.schedule = schedule;

@@ -57,7 +57,7 @@ export default function StudentLedger() {
   const next = ledger?.nextPayment;
 
   return (
-    <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-sm" aria-busy={!ledger && !error}>
+    <section className="mb-5 rounded-xl border border-gray-100 bg-white p-5 shadow-sm" aria-busy={!ledger && !error}>
       <h2 className="text-lg font-bold text-gray-800">Tuition Ledger</h2>
 
       {error && !ledger ? (
@@ -68,7 +68,7 @@ export default function StudentLedger() {
           <div className="w-full space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
         </div>
       ) : (
-        <div className="mt-5 grid gap-6 lg:grid-cols-5">
+        <div className="mt-5 grid gap-4 lg:grid-cols-5">
           {/* Left: exam eligibility. Right: donut analytics and tentative amounts. */}
           <div className="min-w-0 lg:col-span-2">
             <ExamEligibility rows={ledger.eligibility || TERMS.map(({ key }) => ({ term: key, status: terms[key] ? "approved" : "not_open" }))} />

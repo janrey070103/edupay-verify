@@ -21,7 +21,7 @@ const TERMS = [
 const peso = (value) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(value) || 0);
 const shortDate = (value) => (value ? new Date(value).toLocaleDateString("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" }) : "—");
-const CARD = "rounded-xl border border-gray-100 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-6";
+const CARD = "rounded-xl border border-gray-100 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-5";
 const INPUT = "min-h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20";
 const EMPTY_FORM = { amount: "", examCoverage: "", paymentDescription: "" };
 
@@ -229,7 +229,7 @@ const DirectPaymentPanel = ({ onRecorded }) => {
   const problem = accountProblem(student);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       <section className={CARD}>
         <StudentSearch onSelect={selectStudent} />
         {!studentId && (
@@ -238,7 +238,7 @@ const DirectPaymentPanel = ({ onRecorded }) => {
       </section>
 
       {studentId && (
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-4 lg:grid-cols-5">
           {/* Live account panel */}
           <section className={`${CARD} lg:col-span-2`} aria-live="polite">
             <div className="mb-4 flex items-start justify-between gap-3">

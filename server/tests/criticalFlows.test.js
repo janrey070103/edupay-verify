@@ -169,7 +169,7 @@ const withCatalog = async (run) => {
 
 // Exam-day QR scanning is covered in tests/qrScan.test.js.
 
-test("an Admin publishes a term for its own department and notifies only that department's students", () => withCatalog(async () => {
+test("an Admin publishes a term for its own department and notifies only that department's students", (t) => { t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-13T02:00:00Z") }); return withCatalog(async () => {
   const originals = { exists: TermSchedule.exists, create: TermSchedule.create,
     find: User.find, notify: Notification.insertMany, startSession: mongoose.startSession };
   let stored; let studentQuery; const inserted = [];
@@ -185,10 +185,10 @@ test("an Admin publishes a term for its own department and notifies only that de
   Notification.insertMany = async (value) => { inserted.push(value); };
   try {
     const res = response();
-    await publish({ user: { id: "admin-1", role: "admin", department: "ICT" }, body: { examDate: "2026-10-20",
-      semester: "1st Semester", schoolYear: "2026-2027", examType: "Prelim" } }, res);
+    await publish({ user: { id: "admin-1", role: "admin", department: "ICT" }, body: { examDate: "2026-11-20",
+      semester: "1st Semester", schoolYear: "2026-2027", examType: "PreFinal" } }, res);
     assert.equal(res.statusCode, 201);
-    assert.equal(stored.examType, "Prelim");
+    assert.equal(stored.examType, "PreFinal");
     assert.equal(stored.department, "ICT");
     // Students are limited to ICT courses (BSIT matches, BSA does not).
     const pattern = studentQuery.course.$in[0];
@@ -207,7 +207,7 @@ test("an Admin publishes a term for its own department and notifies only that de
     User.find = originals.find; Notification.insertMany = originals.notify;
     mongoose.startSession = originals.startSession;
   }
-}));
+}); });
 
 test("a student's schedule uses their department's date over the school-wide one", () => withCatalog(async () => {
   const originals = { findUser: User.findById, findSchedules: TermSchedule.find, findExams: Exam.find };

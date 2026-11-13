@@ -50,7 +50,7 @@ const getMyExamCalendar = async (req, res) => {
     const [exams, permits] = await Promise.all([
       Exam.find({ course: course.code, examDate: { $gte: from, $lt: to },
         $or: [{ courseYear: student.yearLevel }, { courseYear: null }, { courseYear: { $exists: false } }] })
-        .select("subject subjectCode examType examDate schedule startTime endTime room proctorName status courseYear course")
+        .select("subject subjectCode examType examKind examDate schedule startTime endTime room proctorName status courseYear course")
         .sort({ examDate: 1 }).lean(),
       ExamPermit.find({ studentId: student.studentId }).select("examType scans permitStatus").lean(),
     ]);
@@ -88,7 +88,7 @@ const proctorStatus = (exam, now = new Date()) => {
 const getTeacherExamCalendar = async (req, res) => {
   try {
     const exams = await Exam.find({ proctorId: req.user.id })
-      .select("subject subjectCode examType examDate schedule startTime endTime room capacity status course courseYear courseSection proctorName")
+      .select("subject subjectCode examType examKind examDate schedule startTime endTime room capacity status course courseYear courseSection proctorName")
       .sort({ examDate: 1 }).lean();
     const ids = exams.map((exam) => exam._id);
     const verified = ids.length ? await ExamPermit.aggregate([

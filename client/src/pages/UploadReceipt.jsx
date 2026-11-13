@@ -6,6 +6,7 @@ import { getMyLedger } from "../api/eligibilityApi";
 import { IconLoader } from "../components/icons/Icons";
 import { PAYMENT_CHANNELS, channelLabel, referenceHint } from "../utils/paymentChannels";
 import ReceiptCheckSummary from "../components/ReceiptCheckSummary";
+import { markMissing } from "../utils/fieldAlerts";
 
 const TERMS = ["Prelim", "Midterm", "PreFinal", "Final"];
 
@@ -48,6 +49,7 @@ export default function UploadReceipt() {
   useEffect(() => { getMyLedger().then(setLedger).catch(() => {}); }, []);
   const focusMissing = (ref, message) => {
     setError(message);
+    markMissing([ref]);
     ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     ref.current?.focus();
   };
@@ -74,7 +76,7 @@ export default function UploadReceipt() {
     finally { setLoading(false); }
   };
 
-  if (submitted) return <section className="mx-auto max-w-2xl rounded-xl border border-green-200 bg-white p-6 shadow-sm" aria-live="polite">
+  if (submitted) return <section className="w-full rounded-xl border border-green-200 bg-white p-5 shadow-sm" aria-live="polite">
     <h2 className="text-xl font-bold text-green-800">Receipt submitted for cashier review</h2>
     <p className="mt-2 text-sm text-gray-600">Your payment remains pending until a cashier verifies its amount and approves it.</p>
     <dl className="mt-5 space-y-2 text-sm">
@@ -88,7 +90,7 @@ export default function UploadReceipt() {
     <Link to="/history" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-sti-blue px-5 font-bold text-white">View payment history</Link>
   </section>;
 
-  return <form onSubmit={submit} noValidate className="mx-auto max-w-2xl rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+  return <form onSubmit={submit} noValidate className="w-full rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
     <h2 className="text-xl font-bold text-gray-800">Upload Receipt</h2>
     <p className="mt-1 text-sm text-gray-500">Your receipt will be reviewed by a cashier before it affects your ledger.</p>
     {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}

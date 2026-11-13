@@ -1,5 +1,5 @@
 const PageHeader = ({ title, subtitle, action }) => (
-  <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 className="text-3xl font-black tracking-tight text-gray-800">{title}</h1>
       {subtitle && (

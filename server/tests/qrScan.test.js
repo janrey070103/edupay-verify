@@ -17,10 +17,10 @@ const response = () => ({ statusCode: 200, body: null,
 const TEACHER = "64b0000000000000000000a1";
 const EXAM_ID = "64b0000000000000000000e1";
 const OTHER_EXAM_ID = "64b0000000000000000000e2";
-const TODAY = new Date("2026-08-20T01:00:00Z"); // Aug 20, 9:00 AM Manila - inside the 1st-sem Prelim month
+const TODAY = new Date("2026-09-20T01:00:00Z"); // Sep 20, 9:00 AM Manila - inside the 1st-sem Prelim month
 
 const makeExam = (overrides = {}) => ({ _id: EXAM_ID, subject: "Networking 1", subjectCode: "IT201", examType: "Prelim",
-  course: "BSIT", courseYear: 2, room: "301", schedule: "8:00-10:00", examDate: new Date("2026-08-20T00:00:00Z"),
+  course: "BSIT", courseYear: 2, room: "301", schedule: "8:00-10:00", examDate: new Date("2026-09-20T00:00:00Z"),
   status: "Scheduled", proctorId: TEACHER, ...overrides });
 
 /** Stubs the models and simulates the atomic "not yet verified for this exam" lock. */
@@ -96,7 +96,7 @@ test("strict: wrong course is refused", async (t) => {
 
 test("strict: only the assigned proctor, only on the exam day, only for the permit's term", async (t) => {
   setup(t, { exams: {
-    [EXAM_ID]: makeExam({ examDate: new Date("2026-08-21T00:00:00Z") }),
+    [EXAM_ID]: makeExam({ examDate: new Date("2026-09-21T00:00:00Z") }),
     [OTHER_EXAM_ID]: makeExam({ _id: OTHER_EXAM_ID, examType: "Midterm" }),
   } });
   assert.equal((await scan(EXAM_ID, "64b0000000000000000000ff")).statusCode, 403, "not this exam's proctor");
@@ -110,21 +110,21 @@ test("strict: only the assigned proctor, only on the exam day, only for the perm
 });
 
 test("calendar status: verified, today, upcoming, missed, cancelled", () => {
-  const now = new Date("2026-08-20T03:00:00Z");
+  const now = new Date("2026-09-20T03:00:00Z");
   const exam = (date, status = "Scheduled") => ({ examDate: new Date(date), status });
   assert.equal(examStatus(exam("2026-08-19T00:00:00Z"), { verifiedAt: now }, now), "verified");
-  assert.equal(examStatus(exam("2026-08-20T00:00:00Z"), null, now), "today");
-  assert.equal(examStatus(exam("2026-08-25T00:00:00Z"), null, now), "upcoming");
+  assert.equal(examStatus(exam("2026-09-20T00:00:00Z"), null, now), "today");
+  assert.equal(examStatus(exam("2026-09-25T00:00:00Z"), null, now), "upcoming");
   assert.equal(examStatus(exam("2026-08-10T00:00:00Z"), null, now), "missed");
-  assert.equal(examStatus(exam("2026-08-25T00:00:00Z", "Cancelled"), null, now), "cancelled");
+  assert.equal(examStatus(exam("2026-09-25T00:00:00Z", "Cancelled"), null, now), "cancelled");
 });
 
 test("teacher calendar status: today, upcoming, finished, cancelled", () => {
   const { proctorStatus } = require("../controllers/studentExamController");
-  const now = new Date("2026-08-20T03:00:00Z");
+  const now = new Date("2026-09-20T03:00:00Z");
   const exam = (date, status = "Scheduled") => ({ examDate: new Date(date), status });
-  assert.equal(proctorStatus(exam("2026-08-20T00:00:00Z"), now), "today");
-  assert.equal(proctorStatus(exam("2026-08-25T00:00:00Z"), now), "upcoming");
+  assert.equal(proctorStatus(exam("2026-09-20T00:00:00Z"), now), "today");
+  assert.equal(proctorStatus(exam("2026-09-25T00:00:00Z"), now), "upcoming");
   assert.equal(proctorStatus(exam("2026-08-10T00:00:00Z"), now), "finished");
-  assert.equal(proctorStatus(exam("2026-08-25T00:00:00Z", "Cancelled"), now), "cancelled");
+  assert.equal(proctorStatus(exam("2026-09-25T00:00:00Z", "Cancelled"), now), "cancelled");
 });

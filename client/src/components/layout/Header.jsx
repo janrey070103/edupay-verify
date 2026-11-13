@@ -58,7 +58,7 @@ const Header = ({ onMenuClick }) => {
   }, [role, showToast]);
 
   return (
-    <header className="flex h-20 shrink-0 items-center justify-between border-b border-gray-100 bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] sm:px-6 lg:px-8 print:hidden">
+    <header className="flex h-20 shrink-0 items-center justify-between border-b border-gray-100 bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] sm:px-6 lg:px-5 print:hidden">
       <div className="flex items-center gap-3">
         <button
           type="button"

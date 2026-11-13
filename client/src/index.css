@@ -84,3 +84,18 @@
     scrollbar-width: none;
   }
 }
+
+/* Missing-field alert (see utils/fieldAlerts.js): a required field left empty on submit. */
+[data-missing="true"] {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 0.18) !important;
+  animation: field-missing-shake 0.3s ease-in-out;
+}
+@keyframes field-missing-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-missing="true"] { animation: none; }
+}

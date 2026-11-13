@@ -161,7 +161,7 @@ const Notifications = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <PageHeader
         action={
           unread > 0 ? (

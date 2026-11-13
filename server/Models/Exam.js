@@ -13,6 +13,14 @@ const examSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Regular exams fall inside the term's 4-day exam period; Special exams
+    // (make-ups) can only be scheduled after that period ends.
+    examKind: {
+      type: String,
+      enum: ["Regular", "Special"],
+      default: "Regular",
+    },
+
     subject: {
       type: String,
       required: true,

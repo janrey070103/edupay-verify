@@ -39,7 +39,7 @@ const Drawer = ({
           </button>
         </div>
 
-        <div className="custom-scrollbar flex-1 overflow-y-auto p-6">
+        <div className="custom-scrollbar flex-1 overflow-y-auto p-5">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="mb-3 h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-sti-blue" />

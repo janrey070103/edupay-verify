@@ -17,6 +17,8 @@ import { getDefaultRoute } from "../hooks/useAuth";
 import useCatalog from "../hooks/useCatalog";
 import CourseSelect from "../components/ui/CourseSelect";
 import { focusField } from "../utils/formNavigation";
+import { clearMissing, markMissing } from "../utils/fieldAlerts";
+import { currentSchoolYear } from "../utils/schoolYear";
 
 const REMEMBER_KEY = "edupay_remember_email";
 
@@ -54,7 +56,18 @@ const Login = () => {
   const { departments, activeCourses, loading: catalogLoading } = useCatalog();
   const [yearLevel, setYearLevel] = useState("");
   const [semester, setSemester] = useState("");
-  const [schoolYear, setSchoolYear] = useState("");
+
+  // Alerts (e.g. "Your account is awaiting admin verification") disappear after 5 seconds.
+  useEffect(() => {
+    if (!error) return undefined;
+    const timer = setTimeout(() => setError(""), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
+  useEffect(() => {
+    if (!success) return undefined;
+    const timer = setTimeout(() => setSuccess(""), 5000);
+    return () => clearTimeout(timer);
+  }, [success]);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem(REMEMBER_KEY);
@@ -78,9 +91,9 @@ const Login = () => {
     setCourse("");
     setYearLevel("");
     setSemester("");
-    setSchoolYear("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+    clearMissing();
   };
 
   const handleLogin = async (e) => {
@@ -88,13 +101,15 @@ const Login = () => {
     setError("");
 
     if (!email.trim() || !password) {
-      setError("Please enter your email and password.");
+      setError("Please fill in the highlighted fields.");
+      markMissing([!email.trim() && "login-email", !password && "login-password"].filter(Boolean));
       focusField(e.currentTarget, !email.trim() ? "login-email" : "login-password");
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
+      markMissing(["login-email"]);
       focusField(e.currentTarget, "login-email");
       return;
     }
@@ -131,34 +146,37 @@ const Login = () => {
     e.preventDefault();
     setError("");
 
-    if (!studentId.trim() || !lastName.trim() || !firstName.trim() || !email.trim() || !password ||
-        !course.trim() || !yearLevel || !semester || !/^\d{4}-\d{4}$/.test(schoolYear)) {
-      setError("All fields marked with * are required.");
-      // Take the student to the first field still missing.
-      const missingId = [
-        [!studentId.trim(), "signup-student-id"], [!lastName.trim(), "signup-lastName"],
-        [!firstName.trim(), "signup-firstName"], [!email.trim(), "signup-email"], [!password, "signup-password"],
-        [!course.trim(), "signup-course"], [!yearLevel, "signup-year"], [!semester, "signup-semester"],
-        [!/^\d{4}-\d{4}$/.test(schoolYear), "signup-school-year"],
-      ].find(([missing]) => missing)?.[1];
-      if (missingId) focusField(e.currentTarget, missingId);
+    // Every required field still empty is outlined in red; the cursor goes to the first one.
+    const missingIds = [
+      [!studentId.trim(), "signup-student-id"], [!lastName.trim(), "signup-lastName"],
+      [!firstName.trim(), "signup-firstName"], [!email.trim(), "signup-email"], [!password, "signup-password"],
+      [!confirmPassword, "signup-confirm"], [!course.trim(), "signup-course"], [!yearLevel, "signup-year"],
+      [!semester, "signup-semester"],
+    ].filter(([missing]) => missing).map(([, id]) => id);
+    if (missingIds.length) {
+      setError(`Please fill in the ${missingIds.length === 1 ? "highlighted field" : `${missingIds.length} highlighted fields`} marked with *.`);
+      markMissing(missingIds);
+      focusField(e.currentTarget, missingIds[0]);
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
+      markMissing(["signup-email"]);
       focusField(e.currentTarget, "signup-email");
       return;
     }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      markMissing(["signup-password"]);
       focusField(e.currentTarget, "signup-password");
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      markMissing(["signup-confirm"]);
       focusField(e.currentTarget, "signup-confirm");
       return;
     }
@@ -176,7 +194,7 @@ const Login = () => {
         course: course || undefined,
         yearLevel: yearLevel ? Number(yearLevel) : undefined,
         semester,
-        schoolYear,
+        schoolYear: currentSchoolYear(),
       });
 
       // Registration no longer auto-logs in — show pending message
@@ -647,12 +665,12 @@ const Login = () => {
                   <div><label htmlFor="signup-semester" className="mb-1.5 block text-sm font-medium text-gray-700">Semester *</label>
                     <select id="signup-semester" value={semester} onChange={(e) => setSemester(e.target.value)}
                       className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm">
-                      <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+                      <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option>
                     </select></div>
-                  <div><label htmlFor="signup-school-year" className="mb-1.5 block text-sm font-medium text-gray-700">School year *</label>
-                    <input id="signup-school-year" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)}
-                      placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}"
-                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm" /></div>
+                  <div><label htmlFor="signup-school-year" className="mb-1.5 block text-sm font-medium text-gray-700">School year <span className="font-normal text-gray-400">· current</span></label>
+                    <input id="signup-school-year" value={currentSchoolYear()} readOnly aria-readonly="true"
+                      title="Set automatically to the current school year"
+                      className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm cursor-not-allowed bg-gray-50 font-semibold text-gray-700" /></div>
                 </div>
 
                 <button

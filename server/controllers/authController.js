@@ -5,10 +5,13 @@ const jwt = require("jsonwebtoken");
 const { readNameParts, validNameParts, fullName } = require("../utils/personName");
 const { courseProblem } = require("../utils/courseRules");
 const { findCourse } = require("../services/catalogService");
+const { currentSchoolYear } = require("../config/schoolYear");
 
 // Register (public sign-up — always creates student accounts only)
 const register = async (req, res) => {
   try {
+    // The school year is always the current one (real time), whatever was sent.
+    req.body.schoolYear = currentSchoolYear();
     const {
       studentId,
       email,
@@ -26,7 +29,7 @@ const register = async (req, res) => {
     // Validate required fields
     if (!studentId || !email || !password || !course ||
         !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 6 ||
-        !["1st Semester", "2nd Semester", "Summer"].includes(semester) ||
+        !["1st Semester", "2nd Semester"].includes(semester) ||
         !/^\d{4}-\d{4}$/.test(String(schoolYear || "")) ||
         Number(String(schoolYear).slice(5)) !== Number(String(schoolYear).slice(0, 4)) + 1) {
       return res.status(400).json({

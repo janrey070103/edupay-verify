@@ -24,8 +24,8 @@ const AppLayout = () => {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
         <Header onMenuClick={openSidebar} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-10 print:overflow-visible print:p-0">
-          <div className="mx-auto max-w-7xl">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 print:overflow-visible print:p-0">
+          <div className="w-full">
             <Outlet />
           </div>
         </main>

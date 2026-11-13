@@ -68,7 +68,7 @@ const ExamReport = ({ event, teacher }) => {
   const cell = "border border-gray-400 px-2 py-1 text-left";
   return (
     <div>
-      <PrintHeader title={`${event.subjectCode} — ${event.subject} (${TERM_LABELS[event.examType] || event.examType})`} teacher={teacher} />
+      <PrintHeader title={`${event.subjectCode} — ${event.subject} (${TERM_LABELS[event.examType] || event.examType}${event.examKind === "Special" ? " · Special exam" : ""})`} teacher={teacher} />
       <dl className="mb-4 grid grid-cols-3 gap-x-6 gap-y-1 text-sm">
         <div><dt className="font-bold">Term</dt><dd>{TERM_LABELS[event.examType] || event.examType}</dd></div>
         <div><dt className="font-bold">Date</dt><dd>{fmt(event.examDate, { dateStyle: "full" })}</dd></div>
@@ -174,10 +174,10 @@ export default function AssignedExams() {
   };
   const changeMonth = (value) => { setMonth(value); setSelectedDay(null); };
 
-  if (!data && !error) return <div className="mx-auto max-w-6xl"><Skeleton className="h-96 w-full rounded-xl" /></div>;
+  if (!data && !error) return <div className="w-full"><Skeleton className="h-96 w-full rounded-xl" /></div>;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <PrintReport events={print} teacher={teacher} />
 
       <div className={print ? "print:hidden" : ""}>
@@ -226,7 +226,7 @@ export default function AssignedExams() {
         )}
         {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <ExamCalendar events={events} statusMeta={STATUS} month={shownMonth} onMonthChange={changeMonth}
               selectedDay={selectedDay} onSelectDay={selectDay} />
@@ -245,7 +245,7 @@ export default function AssignedExams() {
                       className={`w-full rounded-lg border p-3 text-left transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sti-blue/20 ${selectedId === event._id ? "border-sti-blue bg-blue-50/40" : "border-gray-100"}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-800">{event.subjectCode}</p>
+                          <p className="text-sm font-bold text-gray-800">{event.subjectCode}{event.examKind === "Special" && <span className="ml-1.5 rounded bg-purple-50 px-1.5 py-0.5 align-middle text-[10px] font-bold text-purple-700">Special</span>}</p>
                           <p className="truncate text-sm text-gray-600">{event.subject}</p>
                         </div>
                         <StatusPill status={event.status} meta={STATUS} />
@@ -270,7 +270,7 @@ export default function AssignedExams() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill status={selected.status} meta={STATUS} />
-                <span className="text-sm font-semibold text-gray-600">{TERM_LABELS[selected.examType] || selected.examType} exam</span>
+                <span className="text-sm font-semibold text-gray-600">{TERM_LABELS[selected.examType] || selected.examType} {selected.examKind === "Special" ? "special exam" : "exam"}</span>
               </div>
 
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">

@@ -156,7 +156,7 @@ const Reports = () => {
       )}
 
       {/* Date range filter bar */}
-      <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
         <SortSelect sort={sort} order={order} onChange={setSorting} label="Sort by date submitted" />
         <PaidViaSelect value={filters.channel} onChange={(value) => setQueryFilter("channel", value)} />
         <label className="text-xs font-bold uppercase tracking-widest text-gray-400">
@@ -197,7 +197,7 @@ const Reports = () => {
       </div>
 
       {/* Stat cards (server summary, not page-local counts) */}
-      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Payments"
           value={summary.total}

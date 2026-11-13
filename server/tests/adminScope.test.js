@@ -91,12 +91,13 @@ test("an Admin can verify a student in its department", () => withCatalog(async 
   } finally { User.findById = originals.findById; Notification.create = originals.create; }
 }));
 
-test("exams can only be created for a course in the Admin's department", () => withCatalog(async () => {
-  const originals = { findOne: Exam.findOne, create: Exam.create };
+test("exams can only be created for a course in the Admin's department", (t) => { t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-13T02:00:00Z") }); return withCatalog(async () => {
+  const originals = { findOne: Exam.findOne, create: Exam.create, find: Exam.find };
   let created;
   Exam.findOne = async () => null;
+  Exam.find = () => ({ select: () => ({ lean: async () => [] }) }); // no other exams in the term yet
   Exam.create = async (values) => { created = values; return values; };
-  const body = { examDate: "2026-12-01", examType: "Prelim", subject: "Networks", subjectCode: "IT101", schedule: "8-10" };
+  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", schedule: "8-10" };
   try {
     const denied = response();
     await createExam({ user: ictAdmin, body: { ...body, course: "BSA" } }, denied);
@@ -106,8 +107,8 @@ test("exams can only be created for a course in the Admin's department", () => w
     await createExam({ user: ictAdmin, body: { ...body, course: "BSIT" } }, ok);
     assert.equal(ok.statusCode, 201);
     assert.equal(created.course, "BSIT");
-  } finally { Exam.findOne = originals.findOne; Exam.create = originals.create; }
-}));
+  } finally { Exam.findOne = originals.findOne; Exam.create = originals.create; Exam.find = originals.find; }
+}); });
 
 test("students must pick an active catalogue course", () => withCatalog(async () => {
   assert.equal(await courseProblem("BSIT"), null);
@@ -130,12 +131,13 @@ test("verifying a student stores the official course code for an older typed val
   } finally { User.findById = originals.findById; Notification.create = originals.create; }
 }));
 
-test("exam times: picked times are saved; bad or reversed times are refused", () => withCatalog(async () => {
-  const originals = { findOne: Exam.findOne, create: Exam.create };
+test("exam times: picked times are saved; bad or reversed times are refused", (t) => { t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-13T02:00:00Z") }); return withCatalog(async () => {
+  const originals = { findOne: Exam.findOne, create: Exam.create, find: Exam.find };
   let created;
   Exam.findOne = async () => null;
+  Exam.find = () => ({ select: () => ({ lean: async () => [] }) }); // no other exams in the term yet
   Exam.create = async (values) => { created = values; return values; };
-  const body = { examDate: "2026-12-01", examType: "Prelim", subject: "Networks", subjectCode: "IT101", course: "BSIT", schedule: "9:00 AM – 11:00 AM" };
+  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", course: "BSIT", schedule: "9:00 AM – 11:00 AM" };
   try {
     const ok = response();
     await createExam({ user: ictAdmin, body: { ...body, startTime: "09:00", endTime: "11:00" } }, ok);
@@ -149,5 +151,5 @@ test("exam times: picked times are saved; bad or reversed times are refused", ()
     await createExam({ user: ictAdmin, body: { ...body, schedule: "After lunch, TBA", startTime: "", endTime: "" } }, manual);
     assert.equal(manual.statusCode, 201);
     assert.equal(created.startTime, undefined, "typed schedule: no picked times");
-  } finally { Exam.findOne = originals.findOne; Exam.create = originals.create; }
-}));
+  } finally { Exam.findOne = originals.findOne; Exam.create = originals.create; Exam.find = originals.find; }
+}); });

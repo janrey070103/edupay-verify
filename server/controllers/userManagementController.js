@@ -20,11 +20,13 @@ const OUT_OF_SCOPE = "This student belongs to another department.";
 const SUPER_ADMIN_TAKEN = "Only one Super Admin account is allowed.";
 const NAME_REQUIRED = "First name and last name are required.";
 
+const { currentSchoolYear } = require("../config/schoolYear");
+
 const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher", "super_admin"];
 const validEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || ""));
 const validAcademics = ({ course, yearLevel, semester, schoolYear }) =>
   Boolean(String(course || "").trim() && Number.isInteger(Number(yearLevel)) && Number(yearLevel) >= 1 &&
-    Number(yearLevel) <= 6 && ["1st Semester", "2nd Semester", "Summer"].includes(semester) &&
+    Number(yearLevel) <= 6 && ["1st Semester", "2nd Semester"].includes(semester) &&
     /^\d{4}-\d{4}$/.test(String(schoolYear || "")) &&
     Number(String(schoolYear).slice(5)) === Number(String(schoolYear).slice(0, 4)) + 1);
 
@@ -207,6 +209,8 @@ const rejectStudent = async (req, res) => {
 // POST create a user (only an authenticated super admin can reach this route)
 const createUser = async (req, res) => {
   try {
+    // The school year is always the current one (real time), whatever was sent.
+    req.body.schoolYear = currentSchoolYear();
     const { studentId, email, password, role, course, yearLevel, semester, schoolYear } = req.body;
     const nameParts = readNameParts(req.body);
 
@@ -284,6 +288,8 @@ const createUser = async (req, res) => {
 // PATCH update user
 const updateUser = async (req, res) => {
   try {
+    // The school year is always the current one (real time), whatever was sent.
+    req.body.schoolYear = currentSchoolYear();
     const { id } = req.params;
     const {
       name,
@@ -485,7 +491,7 @@ const activateUser = async (req, res) => {
 const listTeachers = async (_req, res) => {
   try {
     const teachers = await User.find({ role: "teacher", isActive: { $ne: false } })
-      .select("name firstName middleName lastName email").sort({ lastName: 1, name: 1 }).limit(500).lean();
+      .select("name firstName middleName lastName email studentId").sort({ lastName: 1, name: 1 }).limit(500).lean();
     res.json(teachers);
   } catch (error) {
     res.status(500).json({ message: "Could not load teachers." });

@@ -57,7 +57,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <button type="button" onClick={() => navigate("/pending-students")} className="text-left">
           <StatCard label="Pending Students" value={s.pendingStudents ?? 0} variant="icon" icon={IconUsers}
             valueClassName="text-sti-blue" iconClassName="bg-amber-50 text-amber-600"
@@ -78,7 +78,7 @@ const AdminDashboard = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
           <h2 className="mb-4 text-lg font-bold text-gray-800">Needs attention</h2>
           {loading ? (

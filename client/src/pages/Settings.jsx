@@ -8,7 +8,7 @@ import Skeleton from "../components/ui/Skeleton";
 import { IconLoader } from "../components/icons/Icons";
 
 const INPUT = "min-h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-sti-blue focus:outline-none focus:ring-2 focus:ring-sti-blue/20";
-const CARD = "rounded-xl border border-gray-100 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-6";
+const CARD = "rounded-xl border border-gray-100 bg-white p-5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-5";
 const ROLE_LABELS = { student: "Student", cashier: "Cashier", teacher: "Teacher", admin: "Admin", super_admin: "Super Admin" };
 
 const Profile = ({ me, departments }) => {
@@ -185,7 +185,7 @@ const Settings = () => {
   }, []);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-4">
       <section className={CARD}>
         <h2 className="mb-4 text-lg font-bold text-gray-800">My profile</h2>
         {me ? <Profile me={me} departments={departments} /> : <Skeleton className="h-24 w-full rounded-lg" />}

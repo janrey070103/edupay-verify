@@ -54,7 +54,7 @@ const Modal = ({ isOpen, onClose, title, children, size = "lg" }) => {
           </button>
         </div>
         
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-y-auto p-5">
           {children}
         </div>
       </div>

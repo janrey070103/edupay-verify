@@ -102,8 +102,8 @@ export default function TeacherProctor() {
   };
 
   const exam = result?.data?.exam;
-  return <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
-    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+  return <div className="mx-auto grid w-full gap-4 lg:grid-cols-2">
+    <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-gray-800">Scan Exam Permit</h2>
       <p className="mt-1 text-sm text-gray-500">Choose the exam you are proctoring now. Each QR is verified once per subject; only students of that course and year level are accepted.</p>
       <label htmlFor="scan-exam" className="mt-5 block text-sm font-semibold text-gray-700">Exam you are proctoring today</label>
@@ -145,7 +145,7 @@ export default function TeacherProctor() {
       )}
     </section>
 
-    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm" aria-live="polite">
+    <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm" aria-live="polite">
       <h2 className="text-lg font-bold text-gray-800">Verification result</h2>
       {!result ? <p className="mt-5 text-sm text-gray-500">Scan a permit to see the student, subject, room and verification time.</p> : (
         <>

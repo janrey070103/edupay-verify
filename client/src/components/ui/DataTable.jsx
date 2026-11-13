@@ -92,16 +92,16 @@ const DataTable = ({
   return (
     <div className={`transition-opacity ${busy ? "opacity-60" : ""} ${className}`} aria-busy={fetching}>
       {/* Desktop / tablet table */}
-      <div className="hidden overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] md:block print:block">
+      <div className="hidden overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] lg:block print:block">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
+          <table className="w-full table-auto divide-y divide-gray-100">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className={column.headerClass || "px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400"}
+                    className={column.headerClass || "px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400"}
                   >
                     {column.header}
                   </th>
@@ -123,7 +123,7 @@ const DataTable = ({
                     className={`group transition-colors hover:bg-blue-50/30 ${onRowClick ? "cursor-pointer" : ""}`}
                   >
                     {columns.map((column) => (
-                      <td key={column.key} className={column.cellClass || "whitespace-nowrap px-6 py-4"}>
+                      <td key={column.key} className={column.cellClass || "px-3 py-2.5 text-sm align-middle wrap-break-word"}>
                         {column.render(row)}
                       </td>
                     ))}
@@ -136,7 +136,7 @@ const DataTable = ({
       </div>
 
       {/* Mobile bento cards (printing always uses the table) */}
-      <div className="md:hidden print:hidden">
+      <div className="lg:hidden print:hidden">
         {loading ? (
           <div className="grid gap-3">
             {Array.from({ length: Math.min(skeletonRows, 4) }).map((_, index) => <CardSkeleton key={index} />)}

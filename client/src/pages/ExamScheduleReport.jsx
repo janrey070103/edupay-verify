@@ -145,7 +145,7 @@ const ExamScheduleReport = () => {
 
       <div className="print-hide">
 
-        <div className="rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6 mb-6">
+        <div className="rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-5 mb-6">
           <div className="grid gap-4 md:grid-cols-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -214,7 +214,7 @@ const ExamScheduleReport = () => {
       </div>
 
       {/* Report Content */}
-      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-6">
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] sm:p-5">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-gray-600">
             <IconLoader className="h-5 w-5 animate-spin" />
@@ -225,7 +225,7 @@ const ExamScheduleReport = () => {
             No exams found for the selected period.
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-5">
             {Object.entries(exams).map(([dateKey, examsList]) => (
               <div key={dateKey} className="page-break">
                 <div className="section-title mb-4 pt-2 text-base font-black text-gray-800 sm:px-2 sm:text-lg">{dateKey}</div>

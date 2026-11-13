@@ -98,7 +98,7 @@ const PaymentHistory = () => {
       key: "remarks",
       header: "Remarks",
       priority: "detail",
-      cellClass: "max-w-xs px-6 py-4 text-sm",
+      cellClass: "max-w-xs px-3 py-2.5 text-sm wrap-break-word",
       render: (payment) => (payment.status === "Rejected" && payment.remarks
         ? <span className="text-red-700">{payment.remarks}</span>
         : "—"),
@@ -120,14 +120,14 @@ const PaymentHistory = () => {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
         <div>
           <h3 className="text-sm font-bold text-gray-800">Filter by Term</h3>
           <p className="text-xs text-gray-500">Select a term to view related payments</p>

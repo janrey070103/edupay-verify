@@ -103,7 +103,7 @@ const ExamPermit = () => {
   const openPermitDoc = permits.find((permit) => permit.examType === openPeriod?.apiValue);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="w-full">
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -111,13 +111,13 @@ const ExamPermit = () => {
       )}
 
       {/* Student info card */}
-      <div className="mb-8 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+      <div className="mb-5 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
         <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4">
           <h2 className="text-lg font-bold text-gray-800">
             Student Information
           </h2>
         </div>
-        <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-gray-400">
               Full Name
@@ -154,7 +154,7 @@ const ExamPermit = () => {
       </div>
 
       {/* Exam period eligibility */}
-      <div className="mb-8 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+      <div className="mb-5 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
         <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4">
           <h2 className="text-lg font-bold text-gray-800">
             Exam Period Eligibility
@@ -166,7 +166,7 @@ const ExamPermit = () => {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between rounded-xl border border-gray-100 p-5">
                 <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ const ExamPermit = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
             {EXAM_PERIODS.map(({ key, label, apiValue }) => {
               const permit = permits.find((p) => p.examType === apiValue);
               const eligible = eligibility?.[key] ?? false;

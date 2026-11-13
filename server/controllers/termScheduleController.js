@@ -5,6 +5,8 @@ const Notification = require("../Models/Notification");
 const mongoose = require("mongoose");
 const { DEPARTMENTS } = require("../config/catalog");
 const { courseScope } = require("../utils/adminScope");
+const { termDateProblem } = require("../config/examWindows");
+const { currentSchoolYear } = require("../config/schoolYear");
 const { schedulesForStudent, examCourseFilter } = require("../services/termScheduleService");
 
 const manilaDay = (value) => new Intl.DateTimeFormat("en-CA", {
@@ -13,7 +15,7 @@ const manilaDay = (value) => new Intl.DateTimeFormat("en-CA", {
 const phDate = (date) => date.toLocaleDateString("en-PH", { timeZone: "Asia/Manila" });
 
 const validYear = (value) => /^\d{4}-\d{4}$/.test(value) && Number(value.slice(5)) === Number(value.slice(0, 4)) + 1;
-const validSemester = (value) => ["1st Semester", "2nd Semester", "Summer"].includes(value);
+const validSemester = (value) => ["1st Semester", "2nd Semester"].includes(value);
 const ALREADY = "Your department has already published this term for the semester and school year.";
 
 // An Admin publishes a term date for their own department only; only that
@@ -23,6 +25,8 @@ const publish = async (req, res) => {
   try {
     const department = req.user.department;
     if (!department) return res.status(403).json({ message: "Your account has no department assigned." });
+    // Term dates are published for the current school year only.
+    req.body.schoolYear = currentSchoolYear();
     const { examDate, semester, schoolYear, examType } = req.body;
     const date = new Date(examDate);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate || "") || Number.isNaN(date.getTime()) ||
@@ -30,6 +34,8 @@ const publish = async (req, res) => {
         !validYear(schoolYear) || !["Prelim", "Midterm", "PreFinal", "Final"].includes(examType)) {
       return res.status(400).json({ message: "Valid exam date, semester, school year, and term are required." });
     }
+    const dateProblem = termDateProblem({ examDate, semester, schoolYear, examType });
+    if (dateProblem) return res.status(400).json({ message: dateProblem });
     const existing = await TermSchedule.exists({ semester, schoolYear, examType, department });
     if (existing) return res.status(409).json({ message: ALREADY });
     const studentScope = await courseScope(req);

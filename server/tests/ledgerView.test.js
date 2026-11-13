@@ -40,7 +40,7 @@ test("each exam term gets one eligibility status, most advanced first", () => {
   const { buildEligibility } = require("../controllers/eligibilityController");
   const terms = { Prelim: true, Midterm: true, PreFinal: false, Final: false };
   const result = buildEligibility(terms, {
-    student: { semester: "Summer", schoolYear: "2026-2027" }, // no permit months in Summer
+    student: { semester: "1st Semester", schoolYear: "2026-2027" }, now: new Date("2026-09-10T04:00:00Z"), // Prelim month
     permits: [{ examType: "Prelim", permitStatus: "Valid" }],
     termPayments: [
       { examCoverage: "PreFinal", status: "Pending" },
@@ -48,7 +48,7 @@ test("each exam term gets one eligibility status, most advanced first", () => {
     ],
     schedules: [{ examType: "Prelim", examDate: new Date("2026-10-20") }],
   });
-  assert.deepEqual(result.map((row) => row.status), ["permit_ready", "approved", "pending", "rejected"]);
+  assert.deepEqual(result.map((row) => row.status), ["permit_ready", "opens_later", "pending", "rejected"]);
   assert.ok(result[0].examDate, "published date is included");
 
   const unpaid = buildEligibility({ Prelim: false, Midterm: false, PreFinal: false, Final: false },
@@ -57,8 +57,8 @@ test("each exam term gets one eligibility status, most advanced first", () => {
   assert.deepEqual(unpaid.map((row) => row.status), ["payment_due", "pending", "not_open", "not_open"],
     "a waiting receipt outranks an older rejection");
 
-  const revoked = buildEligibility({ Prelim: true }, { student: { semester: "Summer", schoolYear: "2026-2027" },
-    permits: [{ examType: "Prelim", permitStatus: "Revoked" }] });
+  const revoked = buildEligibility({ Prelim: true }, { student: { semester: "1st Semester", schoolYear: "2026-2027" },
+    now: new Date("2026-09-10T04:00:00Z"), permits: [{ examType: "Prelim", permitStatus: "Revoked" }] });
   assert.equal(revoked[0].status, "revoked");
 });
 
@@ -69,21 +69,22 @@ test("each term's QR is usable only in its own month", () => {
   const day = (iso) => new Date(`${iso}T12:00:00+08:00`);
 
   // 1st semester months fall in the first year, 2nd semester months in the second.
-  assert.equal(termWindow(first.semester, first.schoolYear, "Prelim").start.toISOString(), "2026-07-31T16:00:00.000Z"); // Aug 1, 00:00 PH
-  assert.equal(termWindow(first.semester, first.schoolYear, "Final").end.toISOString(), "2026-11-30T15:59:59.999Z"); // Nov 30, 23:59:59.999 PH
+  assert.equal(termWindow(first.semester, first.schoolYear, "Prelim").start.toISOString(), "2026-08-31T16:00:00.000Z"); // Sep 1, 00:00 PH
+  assert.equal(termWindow(first.semester, first.schoolYear, "Final").end.toISOString(), "2026-12-31T15:59:59.999Z"); // Dec 31, 23:59:59.999 PH
   assert.equal(termWindow(second.semester, second.schoolYear, "Prelim").start.toISOString(), "2026-12-31T16:00:00.000Z"); // Jan 1, 2027 PH
   assert.equal(termWindow(second.semester, second.schoolYear, "Final").end.toISOString(), "2027-04-30T15:59:59.999Z");
 
-  assert.equal(windowProblem(first, "Midterm", day("2026-09-30")), null, "last day of September is inside");
-  assert.match(windowProblem(first, "Midterm", day("2026-08-31")), /can only be used from Sep 1, 2026/);
-  assert.match(windowProblem(first, "Midterm", day("2026-10-01")), /ended on Sep 30, 2026/);
-  assert.equal(windowProblem({ semester: "Summer", schoolYear: "2026-2027" }, "Final", day("2027-06-01")), null);
+  assert.equal(windowProblem(first, "Midterm", day("2026-10-31")), null, "last day of October is inside");
+  assert.match(windowProblem(first, "Midterm", day("2026-09-30")), /can only be used from Oct 1, 2026/);
+  assert.match(windowProblem(first, "Midterm", day("2026-11-01")), /ended on Oct 31, 2026/);
+  // There is no Summer term: an old "Summer" value is treated as not set.
+  assert.match(windowProblem({ semester: "Summer", schoolYear: "2026-2027" }, "Final", day("2027-06-01")), /semester and school year are not set/);
   assert.match(windowProblem({ semester: "", schoolYear: "" }, "Prelim"), /semester and school year are not set/);
   assert.equal(describeWindow(second, "PreFinal", day("2027-03-15")).state, "open");
 
   const { buildEligibility } = require("../controllers/eligibilityController");
   const paid = { Prelim: true, Midterm: true, PreFinal: true, Final: false };
-  const rows = buildEligibility(paid, { student: first, now: day("2026-09-10"),
+  const rows = buildEligibility(paid, { student: first, now: day("2026-10-10"),
     permits: [{ examType: "Prelim", permitStatus: "Valid" }, { examType: "Midterm", permitStatus: "Valid" }] });
   assert.deepEqual(rows.map((row) => row.status), ["period_ended", "permit_ready", "opens_later", "not_open"]);
   assert.equal(rows[2].window.state, "upcoming");

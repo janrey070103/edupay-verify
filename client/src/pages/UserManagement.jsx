@@ -13,6 +13,7 @@ import Drawer from "../components/ui/Drawer";
 import EmptyState from "../components/ui/EmptyState";
 import usePaginated from "../hooks/usePaginated";
 import useCatalog from "../hooks/useCatalog";
+import { currentSchoolYear } from "../utils/schoolYear";
 import CourseSelect from "../components/ui/CourseSelect";
 import SortSelect from "../components/ui/SortSelect";
 import DateRangeFilter from "../components/ui/DateRangeFilter";
@@ -177,8 +178,7 @@ const UserManagement = () => {
     }
     if (form.role === "student" && (!form.studentId.trim() || !form.course.trim() ||
       !Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 6 ||
-      !["1st Semester", "2nd Semester", "Summer"].includes(form.semester) ||
-      !/^\d{4}-\d{4}$/.test(form.schoolYear))) {
+      !["1st Semester", "2nd Semester"].includes(form.semester))) {
       setDrawerError("Complete the student's ID and valid academic information."); return;
     }
     setDrawerLoading(true);
@@ -186,13 +186,13 @@ const UserManagement = () => {
 
     try {
       if (drawerMode === "create") {
-        await createUser(form.role === "student" ? { ...form, department: "" } :
+        await createUser(form.role === "student" ? { ...form, schoolYear: currentSchoolYear(), department: "" } :
           { ...form, course: "", yearLevel: "", semester: "", schoolYear: "" });
         showToast("User created successfully.", "success");
       } else {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
-        await updateUser(editingUser._id, form.role === "student" ? payload :
+        await updateUser(editingUser._id, form.role === "student" ? { ...payload, schoolYear: currentSchoolYear() } :
           { ...payload, course: "", yearLevel: "", semester: "", schoolYear: "" });
         showToast("User updated successfully.", "success");
       }
@@ -260,9 +260,6 @@ const UserManagement = () => {
   // role pills switch each other off instead of contradicting each other.
   const selectRole = (value) => setQueryFilters({ role: value,
     ...(value && value !== "student" ? { courseIssue: false } : {}) });
-  const toggleCourseIssue = () => setQueryFilters(filters.courseIssue
-    ? { courseIssue: false }
-    : { courseIssue: true, ...(filters.role && filters.role !== "student" ? { role: "" } : {}) });
 
   const dateLabel = filters.from && filters.to ? `Created ${shortDate(filters.from)} – ${shortDate(filters.to)}`
     : filters.from ? `Created from ${shortDate(filters.from)}` : filters.to ? `Created until ${shortDate(filters.to)}` : "";
@@ -480,21 +477,6 @@ const UserManagement = () => {
             </button>
           );
         })}
-        {/* Students whose course is not in the official list: no Admin can see them until fixed. */}
-        <button
-          type="button"
-          onClick={toggleCourseIssue}
-          aria-pressed={Boolean(filters.courseIssue)}
-          title="Students only"
-          className={[
-            "min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-500/20",
-            filters.courseIssue
-              ? "bg-amber-600 text-white"
-              : "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
-          ].join(" ")}
-        >
-          Course not in list
-        </button>
       </div>
 
       {/* Active filters: every filter that narrows the list, each removable. */}
@@ -703,7 +685,7 @@ const UserManagement = () => {
                   onChange={(e) => updateField("semester", e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
-                  <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option><option>Summer</option>
+                  <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option>
                 </select>
               </div>
               <div>
@@ -716,12 +698,15 @@ const UserManagement = () => {
                 <input
                   id="um-schoolYear"
                   type="text"
-                  pattern="[0-9]{4}-[0-9]{4}"
-                  value={form.schoolYear}
-                  onChange={(e) => updateField("schoolYear", e.target.value)}
-                  placeholder="e.g. 2025-2026"
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  value={currentSchoolYear()}
+                  readOnly
+                  aria-readonly="true"
+                  title="Set automatically to the current school year"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none cursor-not-allowed bg-gray-50 font-semibold text-gray-700"
                 />
+                {drawerMode === "edit" && editingUser?.schoolYear && editingUser.schoolYear !== currentSchoolYear() && (
+                  <p className="mt-1 text-xs text-amber-700">Saved as {editingUser.schoolYear}; saving updates it to {currentSchoolYear()}.</p>
+                )}
               </div>
             </div>
           </>}

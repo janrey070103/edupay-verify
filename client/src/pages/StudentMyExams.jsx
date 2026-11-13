@@ -44,10 +44,10 @@ export default function StudentMyExams() {
     ? events.filter((event) => dayKey(event.examDate) === selectedDay)
     : events.filter((event) => dayKey(event.examDate).startsWith(monthKey));
 
-  if (!data && !error) return <div className="mx-auto max-w-6xl"><Skeleton className="h-96 w-full rounded-xl" /></div>;
+  if (!data && !error) return <div className="w-full"><Skeleton className="h-96 w-full rounded-xl" /></div>;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <div className="mb-4">
         <h2 className="text-xl font-bold text-gray-800">My Exams</h2>
         {data?.student && (
@@ -59,7 +59,7 @@ export default function StudentMyExams() {
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {data?.message && <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{data.message}</p>}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <ExamCalendar events={events} statusMeta={STATUS} month={shownMonth} onMonthChange={setMonth}
             selectedDay={selectedDay} onSelectDay={setSelectedDay} />
@@ -76,7 +76,7 @@ export default function StudentMyExams() {
                 <li key={event._id} className="rounded-lg border border-gray-100 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-gray-800">{event.subjectCode}</p>
+                      <p className="text-sm font-bold text-gray-800">{event.subjectCode}{event.examKind === "Special" && <span className="ml-1.5 rounded bg-purple-50 px-1.5 py-0.5 align-middle text-[10px] font-bold text-purple-700">Special</span>}</p>
                       <p className="truncate text-sm text-gray-600">{event.subject}</p>
                     </div>
                     <StatusPill status={event.status} meta={STATUS} />
