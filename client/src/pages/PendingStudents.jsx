@@ -57,8 +57,8 @@ const PendingStudents = () => {
   } = usePaginated(
     ({ search: searchTerm, ...params }) =>
       getPendingStudents(searchTerm ? { ...params, search: searchTerm } : params),
-    // Oldest first: students who have waited longest are verified first.
-    { initialLimit: 20, initialFilters: { search: "", from: "", to: "" }, initialSort: "createdAt", initialOrder: "asc" }
+    // Newest registrations first.
+    { initialLimit: 20, initialFilters: { search: "", from: "", to: "" }, initialSort: "createdAt", initialOrder: "desc" }
   );
 
   useEffect(() => {

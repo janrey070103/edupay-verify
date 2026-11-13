@@ -70,7 +70,7 @@ const VerifyPayments = () => {
     refresh,
   } = usePaginated(
     ({ status, ...params }) => getPayments(status ? { ...params, status } : params),
-    { initialLimit: 20, initialFilters: { status: "", from: "", to: "", channel: "" } }
+    { initialLimit: 20, initialFilters: { status: "", from: "", to: "", channel: "" }, initialSort: "createdAt", initialOrder: "desc" }
   );
 
 

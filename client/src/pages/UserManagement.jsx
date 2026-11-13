@@ -23,10 +23,10 @@ import SortSelect from "../components/ui/SortSelect";
 import DateRangeFilter from "../components/ui/DateRangeFilter";
 
 const USER_SORTS = [
-  { label: "Last name A–Z", sort: "name", order: "asc" },
-  { label: "Last name Z–A", sort: "name", order: "desc" },
   { label: "Newest first", sort: "createdAt", order: "desc" },
   { label: "Oldest first", sort: "createdAt", order: "asc" },
+  { label: "Last name A–Z", sort: "name", order: "asc" },
+  { label: "Last name Z–A", sort: "name", order: "desc" },
 ];
 import { formatCreatedPH, formatLastFirst, splitLegacyName } from "../utils/userPresentation";
 import {
@@ -102,7 +102,7 @@ const UserManagement = () => {
         ...(courseIssue ? { courseIssue: "1" } : {}),
       }),
     { initialLimit: 25, initialFilters: { search: "", role: "", courseIssue: initialCourseIssue, from: "", to: "" },
-      initialSort: "name", initialOrder: "asc" }
+      initialSort: "createdAt", initialOrder: "desc" }
   );
 
   // Debounce typing so each keystroke does not hit the API.

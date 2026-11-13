@@ -48,7 +48,7 @@ const PaymentHistory = () => {
     setLimit,
   } = usePaginated(
     ({ examCoverage, ...params }) => getPayments(examCoverage ? { ...params, examCoverage } : params),
-    { initialLimit: 10, initialFilters: { examCoverage: "", from: "", to: "" } }
+    { initialLimit: 10, initialFilters: { examCoverage: "", from: "", to: "" }, initialSort: "createdAt", initialOrder: "desc" }
   );
 
   const selectedTerm = filters.examCoverage || "All";

@@ -62,7 +62,7 @@ const Reports = () => {
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
       }),
-    { initialLimit: 25, initialFilters: { status: "", from: "", to: "", channel: "" } }
+    { initialLimit: 25, initialFilters: { status: "", from: "", to: "", channel: "" }, initialSort: "createdAt", initialOrder: "desc" }
   );
 
   const loadSummary = useCallback(async () => {

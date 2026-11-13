@@ -19,9 +19,9 @@ const TERMS = [
 // Ledgers are created with a student's first approved payment, so "first cleared"
 // is the closest date to when the student became eligible.
 const ELIGIBILITY_SORTS = [
-  { label: "Last name A–Z", sort: "name", order: "asc" },
   { label: "Newest cleared first", sort: "createdAt", order: "desc" },
   { label: "Oldest cleared first", sort: "createdAt", order: "asc" },
+  { label: "Last name A–Z", sort: "name", order: "asc" },
 ];
 const formatDay = (value) => (value ? new Date(value).toLocaleDateString("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" }) : "—");
@@ -39,7 +39,7 @@ const EligibilityReport = () => {
     ({ search: term, course, yearLevel, ...params }) => getEligibilityReport({
       ...params, ...(term ? { search: term } : {}), ...(course ? { course } : {}), ...(yearLevel ? { yearLevel } : {}),
     }),
-    { initialLimit: 25, initialFilters: { term: "Prelim", search: "", course: "", yearLevel: "" }, initialSort: "name", initialOrder: "asc" }
+    { initialLimit: 25, initialFilters: { term: "Prelim", search: "", course: "", yearLevel: "" }, initialSort: "createdAt", initialOrder: "desc" }
   );
 
   useEffect(() => {

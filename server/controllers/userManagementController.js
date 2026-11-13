@@ -103,8 +103,8 @@ const getPendingStudents = async (req, res) => {
     const created = readDateRange(req.query);
     if (created) query.createdAt = created;
     const paging = readPaging(req.query, { limit: 20 });
-    // Oldest first by default: the students who have waited longest come first.
-    const sort = readSort(req.query, ["name", "createdAt", "email"], "createdAt", "asc");
+    // Newest registrations first by default.
+    const sort = readSort(req.query, ["name", "createdAt", "email"], "createdAt", "desc");
     res.json(await paginate(User, query, paging, sort, { select: "-password" }));
   } catch (error) {
     res.status(500).json({ message: error.message });
