@@ -14,6 +14,10 @@ import EmptyState from "../components/ui/EmptyState";
 import usePaginated from "../hooks/usePaginated";
 import useCatalog from "../hooks/useCatalog";
 import { currentSchoolYear } from "../utils/schoolYear";
+import {
+  NAME_EXTENSIONS, STUDENT_ID_PATTERN, extensionProblem, formatExtension, formatName, formatNameInput,
+  formatStudentId, middleNameProblem, studentEmail,
+} from "../utils/studentIdentity";
 import CourseSelect from "../components/ui/CourseSelect";
 import SortSelect from "../components/ui/SortSelect";
 import DateRangeFilter from "../components/ui/DateRangeFilter";
@@ -40,6 +44,7 @@ const EMPTY_FORM = {
   lastName: "",
   firstName: "",
   middleName: "",
+  nameExtension: "",
   email: "",
   password: "",
   role: "student",
@@ -128,7 +133,8 @@ const UserManagement = () => {
     return () => { active = false; };
   }, []);
 
-  const resetForm = () => { setForm(EMPTY_FORM); setNameGuessed(false); };
+  const [extensionOther, setExtensionOther] = useState(false);
+  const resetForm = () => { setForm(EMPTY_FORM); setNameGuessed(false); setExtensionOther(false); };
 
   const openCreate = () => {
     resetForm();
@@ -148,6 +154,7 @@ const UserManagement = () => {
       lastName: parts.lastName || "",
       firstName: parts.firstName || "",
       middleName: parts.middleName || "",
+      nameExtension: user.nameExtension || "",
       email: user.email || "",
       password: "",
       role: user.role || "student",
@@ -157,6 +164,7 @@ const UserManagement = () => {
       semester: user.semester || "",
       schoolYear: user.schoolYear || "",
     });
+    setExtensionOther(Boolean(user.nameExtension) && !NAME_EXTENSIONS.includes(user.nameExtension));
     setDrawerMode("edit");
     setDrawerError("");
     setEditingUser(user);
@@ -168,7 +176,14 @@ const UserManagement = () => {
     if (!form.lastName.trim() || !form.firstName.trim()) {
       setDrawerError("Last name and first name are required."); return;
     }
-    if (!/^\S+@\S+\.\S+$/.test(form.email) ||
+    const studentIdChanged = drawerMode === "create" || form.studentId !== (editingUser?.studentId || "");
+    if (form.role === "student" && studentIdChanged && !STUDENT_ID_PATTERN.test(form.studentId)) {
+      setDrawerError("Enter the Student ID in the format 23-1681-428."); return;
+    }
+    const middleChanged = formatName(form.middleName) !== (editingUser?.middleName || "");
+    const nameError = (middleChanged && middleNameProblem(form.middleName)) || extensionProblem(form.nameExtension);
+    if (nameError) { setDrawerError(nameError); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email) ||
         (drawerMode === "create" && form.password.length < 6) ||
         (form.password && form.password.length < 6)) {
       setDrawerError("Enter a valid email and a password of at least 6 characters."); return;
@@ -183,14 +198,16 @@ const UserManagement = () => {
     }
     setDrawerLoading(true);
     setDrawerError("");
+    const named = { ...form, email, lastName: formatName(form.lastName), middleName: formatName(form.middleName),
+      firstName: formatName(form.firstName, { allowPeriod: true }) };
 
     try {
       if (drawerMode === "create") {
-        await createUser(form.role === "student" ? { ...form, schoolYear: currentSchoolYear(), department: "" } :
-          { ...form, course: "", yearLevel: "", semester: "", schoolYear: "" });
+        await createUser(form.role === "student" ? { ...named, schoolYear: currentSchoolYear(), department: "" } :
+          { ...named, course: "", yearLevel: "", semester: "", schoolYear: "" });
         showToast("User created successfully.", "success");
       } else {
-        const payload = { ...form };
+        const payload = { ...named };
         if (!payload.password) delete payload.password;
         await updateUser(editingUser._id, form.role === "student" ? { ...payload, schoolYear: currentSchoolYear() } :
           { ...payload, course: "", yearLevel: "", semester: "", schoolYear: "" });
@@ -243,6 +260,10 @@ const UserManagement = () => {
     ...ROLES.filter((role) => role !== "super_admin" || editingSuperAdmin || !superAdminExists),
     ...(drawerMode === "edit" && editingUser?.role === "admin" ? ["admin"] : []),
   ];
+
+  // New student accounts get the institutional email: lastname + extension + "." + ID digits 4-9.
+  const autoEmail = form.role === "student" && drawerMode === "create";
+  const email = autoEmail ? studentEmail(form) : form.email;
 
   const updateField = (field, value) =>
     setForm((prev) => field === "role" && value !== "student" ?
@@ -558,8 +579,9 @@ const UserManagement = () => {
               id="um-studentId"
               type="text"
               value={form.studentId}
-              onChange={(e) => updateField("studentId", e.target.value)}
+              onChange={(e) => updateField("studentId", form.role === "student" ? formatStudentId(e.target.value) : e.target.value)}
               required={form.role === "student"}
+              {...(form.role === "student" ? { inputMode: "numeric", maxLength: 11, placeholder: "e.g. 23-1681-428" } : {})}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
@@ -574,19 +596,48 @@ const UserManagement = () => {
             <div>
               <label htmlFor="um-lastName" className="mb-1 block text-xs font-semibold text-gray-600">Last name *</label>
               <input id="um-lastName" type="text" autoComplete="family-name" value={form.lastName}
-                onChange={(e) => updateField("lastName", e.target.value)} required placeholder="e.g. Dela Cruz" className={INPUT} />
+                onChange={(e) => updateField("lastName", formatNameInput(e.target.value))}
+                onBlur={() => updateField("lastName", formatName(form.lastName))} required placeholder="e.g. Dela Cruz" className={INPUT} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="um-firstName" className="mb-1 block text-xs font-semibold text-gray-600">First name *</label>
                 <input id="um-firstName" type="text" autoComplete="given-name" value={form.firstName}
-                  onChange={(e) => updateField("firstName", e.target.value)} required placeholder="e.g. Juan" className={INPUT} />
+                  onChange={(e) => updateField("firstName", formatNameInput(e.target.value, { allowPeriod: true }))}
+                  onBlur={() => updateField("firstName", formatName(form.firstName, { allowPeriod: true }))}
+                  required placeholder="e.g. Juan" className={INPUT} />
               </div>
               <div>
                 <label htmlFor="um-middleName" className="mb-1 block text-xs font-semibold text-gray-600">Middle name</label>
                 <input id="um-middleName" type="text" autoComplete="additional-name" value={form.middleName}
-                  onChange={(e) => updateField("middleName", e.target.value)} placeholder="Optional" className={INPUT} />
+                  onChange={(e) => updateField("middleName", formatNameInput(e.target.value))}
+                  onBlur={() => updateField("middleName", formatName(form.middleName))}
+                  placeholder="Full middle name (optional)" className={INPUT} />
+                <p className="mt-1 text-xs text-gray-400">Full name only, no initials.</p>
               </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="um-extension" className="mb-1 block text-xs font-semibold text-gray-600">Extension (if applicable)</label>
+                <select id="um-extension" value={extensionOther ? "other" : form.nameExtension}
+                  onChange={(e) => {
+                    const other = e.target.value === "other";
+                    setExtensionOther(other);
+                    updateField("nameExtension", other ? "" : e.target.value);
+                  }} className={INPUT}>
+                  <option value="">None</option>
+                  {NAME_EXTENSIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                  <option value="other">Other (type it)</option>
+                </select>
+              </div>
+              {extensionOther && (
+                <div>
+                  <label htmlFor="um-extension-other" className="mb-1 block text-xs font-semibold text-gray-600">Other extension *</label>
+                  <input id="um-extension-other" type="text" maxLength={6} required placeholder="e.g. II" value={form.nameExtension}
+                    onChange={(e) => updateField("nameExtension", e.target.value.replace(/[^\p{L}.]/gu, ""))}
+                    onBlur={() => updateField("nameExtension", formatExtension(form.nameExtension))} className={INPUT} />
+                </div>
+              )}
             </div>
           </fieldset>
 
@@ -600,11 +651,17 @@ const UserManagement = () => {
             <input
               id="um-email"
               type="email"
-              value={form.email}
+              value={email}
               onChange={(e) => updateField("email", e.target.value)}
+              readOnly={autoEmail}
+              aria-readonly={autoEmail ? "true" : undefined}
+              placeholder={autoEmail ? "Fills in from the last name and Student ID" : undefined}
               required
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              className={`w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${autoEmail ? "cursor-not-allowed bg-gray-50" : ""}`}
             />
+            {autoEmail && (
+              <p className="mt-1 text-xs text-gray-400">Last name + extension + Student ID without its first 3 digits @wnu.sti.edu.ph.</p>
+            )}
           </div>
 
           <div>

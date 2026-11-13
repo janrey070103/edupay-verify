@@ -2,7 +2,7 @@
 const User = require("../Models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { readNameParts, validNameParts, fullName } = require("../utils/personName");
+const { readNameParts, nameProblem, fullName, validStudentId, studentEmail } = require("../utils/personName");
 const { courseProblem } = require("../utils/courseRules");
 const { findCourse } = require("../services/catalogService");
 const { currentSchoolYear } = require("../config/schoolYear");
@@ -13,18 +13,21 @@ const register = async (req, res) => {
     // The school year is always the current one (real time), whatever was sent.
     req.body.schoolYear = currentSchoolYear();
     const {
-      studentId,
-      email,
       password,
       course,
       yearLevel,
       semester,
       schoolYear,
     } = req.body;
+    const studentId = String(req.body.studentId ?? "").trim();
     const nameParts = readNameParts(req.body);
-    if (!validNameParts(nameParts)) {
-      return res.status(400).json({ message: "First name and last name are required." });
+    const nameError = nameProblem(nameParts);
+    if (nameError) return res.status(400).json({ message: nameError });
+    if (!validStudentId(studentId)) {
+      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
     }
+    // The institutional email is built from the last name, extension and ID.
+    const email = studentEmail({ ...nameParts, studentId });
 
     // Validate required fields
     if (!studentId || !email || !password || !course ||
@@ -60,6 +63,7 @@ const register = async (req, res) => {
       studentId,
       ...nameParts,
       middleName: nameParts.middleName || undefined,
+      nameExtension: nameParts.nameExtension || undefined,
       name: fullName(nameParts),
       email,
       password: hashedPassword,

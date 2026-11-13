@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, trim: true },
     middleName: { type: String, trim: true },
     lastName: { type: String, trim: true },
+    // Jr., Sr., III, IV ... (optional)
+    nameExtension: { type: String, trim: true },
 
     email: {
       type: String,
@@ -98,7 +100,7 @@ userSchema.index({ role: 1 }, { unique: true, name: "uniq_single_super_admin",
 // Keep `name` in sync whenever name parts are present.
 userSchema.pre("validate", function syncFullName() {
   if (this.firstName || this.lastName) {
-    this.name = [this.firstName, this.middleName, this.lastName].filter(Boolean).join(" ");
+    this.name = [this.firstName, this.middleName, this.lastName, this.nameExtension].filter(Boolean).join(" ");
   }
 });
 

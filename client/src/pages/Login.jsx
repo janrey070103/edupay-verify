@@ -19,6 +19,10 @@ import CourseSelect from "../components/ui/CourseSelect";
 import { focusField } from "../utils/formNavigation";
 import { clearMissing, markMissing } from "../utils/fieldAlerts";
 import { currentSchoolYear } from "../utils/schoolYear";
+import {
+  NAME_EXTENSIONS, STUDENT_ID_PATTERN, extensionProblem, formatExtension, formatName, formatNameInput,
+  formatStudentId, middleNameProblem, studentEmail,
+} from "../utils/studentIdentity";
 
 const REMEMBER_KEY = "edupay_remember_email";
 
@@ -51,11 +55,19 @@ const Login = () => {
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
+  const [middleTouched, setMiddleTouched] = useState(false);
+  const [extensionChoice, setExtensionChoice] = useState(""); // "", a listed suffix, or "other"
+  const [otherExtension, setOtherExtension] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [course, setCourse] = useState("");
   const { departments, activeCourses, loading: catalogLoading } = useCatalog();
   const [yearLevel, setYearLevel] = useState("");
   const [semester, setSemester] = useState("");
+
+  // Sign-up email is built from the last name, extension and Student ID.
+  const nameExtension = extensionChoice === "other" ? formatExtension(otherExtension) : extensionChoice;
+  const signupEmail = studentEmail({ lastName, nameExtension, studentId });
+  const middleError = middleTouched ? middleNameProblem(middleName) : "";
 
   // Alerts (e.g. "Your account is awaiting admin verification") disappear after 5 seconds.
   useEffect(() => {
@@ -88,6 +100,9 @@ const Login = () => {
     setLastName("");
     setFirstName("");
     setMiddleName("");
+    setMiddleTouched(false);
+    setExtensionChoice("");
+    setOtherExtension("");
     setCourse("");
     setYearLevel("");
     setSemester("");
@@ -149,7 +164,8 @@ const Login = () => {
     // Every required field still empty is outlined in red; the cursor goes to the first one.
     const missingIds = [
       [!studentId.trim(), "signup-student-id"], [!lastName.trim(), "signup-lastName"],
-      [!firstName.trim(), "signup-firstName"], [!email.trim(), "signup-email"], [!password, "signup-password"],
+      [!firstName.trim(), "signup-firstName"], [extensionChoice === "other" && !otherExtension.trim(), "signup-extension-other"],
+      [!password, "signup-password"],
       [!confirmPassword, "signup-confirm"], [!course.trim(), "signup-course"], [!yearLevel, "signup-year"],
       [!semester, "signup-semester"],
     ].filter(([missing]) => missing).map(([, id]) => id);
@@ -160,10 +176,27 @@ const Login = () => {
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setError("Please enter a valid email address.");
-      markMissing(["signup-email"]);
-      focusField(e.currentTarget, "signup-email");
+    if (!STUDENT_ID_PATTERN.test(studentId)) {
+      setError("Enter your Student ID in the format 23-1681-428.");
+      markMissing(["signup-student-id"]);
+      focusField(e.currentTarget, "signup-student-id");
+      return;
+    }
+
+    const middleProblem = middleNameProblem(middleName);
+    if (middleProblem) {
+      setMiddleTouched(true);
+      setError(middleProblem);
+      markMissing(["signup-middleName"]);
+      focusField(e.currentTarget, "signup-middleName");
+      return;
+    }
+
+    const extensionError = extensionProblem(nameExtension);
+    if (extensionError) {
+      setError(extensionError);
+      markMissing(["signup-extension-other"]);
+      focusField(e.currentTarget, "signup-extension-other");
       return;
     }
 
@@ -185,11 +218,12 @@ const Login = () => {
 
     try {
       const res = await API.post("/auth/register", {
-        studentId: studentId.trim(),
-        lastName: lastName.trim(),
-        firstName: firstName.trim(),
-        middleName: middleName.trim(),
-        email: email.trim(),
+        studentId,
+        lastName: formatName(lastName),
+        firstName: formatName(firstName, { allowPeriod: true }),
+        middleName: formatName(middleName),
+        nameExtension: nameExtension || undefined,
+        email: signupEmail,
         password,
         course: course || undefined,
         yearLevel: yearLevel ? Number(yearLevel) : undefined,
@@ -468,9 +502,11 @@ const Login = () => {
                     <input
                       id="signup-student-id"
                       type="text"
-                      placeholder="e.g. 2024-00123"
+                      inputMode="numeric"
+                      maxLength={11}
+                      placeholder="e.g. 23-1681-428"
                       value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
+                      onChange={(e) => setStudentId(formatStudentId(e.target.value))}
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
@@ -495,7 +531,8 @@ const Login = () => {
                       autoComplete="family-name"
                       placeholder="Dela Cruz"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => setLastName(formatNameInput(e.target.value))}
+                      onBlur={() => setLastName(formatName(lastName))}
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
@@ -512,26 +549,71 @@ const Login = () => {
                       autoComplete="given-name"
                       placeholder="Juan"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => setFirstName(formatNameInput(e.target.value, { allowPeriod: true }))}
+                      onBlur={() => setFirstName(formatName(firstName, { allowPeriod: true }))}
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
                   </div>
                   <div>
                     <label htmlFor="signup-middleName" className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Middle Name
+                      Middle Name <span className="font-normal text-gray-400">(optional)</span>
                     </label>
                     <input
                       id="signup-middleName"
                       type="text"
                       autoComplete="additional-name"
-                      placeholder="Optional"
+                      placeholder="Full middle name"
                       value={middleName}
-                      onChange={(e) => setMiddleName(e.target.value)}
+                      onChange={(e) => setMiddleName(formatNameInput(e.target.value))}
+                      onBlur={() => { setMiddleName(formatName(middleName)); setMiddleTouched(true); }}
+                      aria-invalid={middleError ? "true" : undefined}
+                      aria-describedby="signup-middleName-help"
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
+                    <p id="signup-middleName-help" className={`mt-1 text-xs ${middleError ? "text-red-600" : "text-gray-400"}`}>
+                      {middleError || "Full name only, no initials."}
+                    </p>
                   </div>
+                </div>
+
+                {/* Name extension */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="signup-extension" className="mb-1.5 block text-sm font-medium text-gray-700">
+                      Extension <span className="font-normal text-gray-400">(if applicable)</span>
+                    </label>
+                    <select
+                      id="signup-extension"
+                      value={extensionChoice}
+                      onChange={(e) => { setExtensionChoice(e.target.value); if (e.target.value !== "other") setOtherExtension(""); }}
+                      disabled={loading}
+                      className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-8 text-sm font-medium text-gray-900 shadow-sm outline-none transition focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                    >
+                      <option value="">None</option>
+                      {NAME_EXTENSIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      <option value="other">Other (type it)</option>
+                    </select>
+                  </div>
+                  {extensionChoice === "other" && (
+                    <div>
+                      <label htmlFor="signup-extension-other" className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Other extension <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="signup-extension-other"
+                        type="text"
+                        maxLength={6}
+                        placeholder="e.g. II"
+                        value={otherExtension}
+                        onChange={(e) => setOtherExtension(e.target.value.replace(/[^\p{L}.]/gu, ""))}
+                        onBlur={() => setOtherExtension(formatExtension(otherExtension))}
+                        disabled={loading}
+                        className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Email */}
@@ -540,7 +622,7 @@ const Login = () => {
                     htmlFor="signup-email"
                     className="mb-1.5 block text-sm font-medium text-gray-700"
                   >
-                    Email <span className="text-red-500">*</span>
+                    Institutional Email <span className="font-normal text-gray-400">· automatic</span>
                   </label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -550,13 +632,17 @@ const Login = () => {
                       id="signup-email"
                       type="email"
                       autoComplete="email"
-                      placeholder="you@school.edu"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                      className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
+                      placeholder="lastname.681428@wnu.sti.edu.ph"
+                      value={signupEmail}
+                      readOnly
+                      aria-readonly="true"
+                      aria-describedby="signup-email-help"
+                      className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60 cursor-not-allowed bg-gray-50"
                     />
                   </div>
+                  <p id="signup-email-help" className="mt-1 text-xs text-gray-400">
+                    Last name + extension + Student ID without its first 3 digits. Use it to sign in.
+                  </p>
                 </div>
 
                 {/* Password + Confirm side by side */}
@@ -642,7 +728,7 @@ const Login = () => {
                       htmlFor="signup-year"
                       className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
-                      Year Level
+                      Year Level <span className="text-red-500">*</span>
                     </label>
                     <select
                       id="signup-year"
@@ -662,7 +748,7 @@ const Login = () => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div><label htmlFor="signup-semester" className="mb-1.5 block text-sm font-medium text-gray-700">Semester *</label>
+                  <div><label htmlFor="signup-semester" className="mb-1.5 block text-sm font-medium text-gray-700">Semester <span className="text-red-500">*</span></label>
                     <select id="signup-semester" value={semester} onChange={(e) => setSemester(e.target.value)}
                       className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm">
                       <option value="">Select semester</option><option>1st Semester</option><option>2nd Semester</option>

@@ -6,12 +6,12 @@ export const formatCreatedPH = (value) => value ? new Intl.DateTimeFormat("en-PH
   timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short",
 }).format(new Date(value)) : "Unknown";
 
-// "Dela Cruz, Juan Santos". Accounts created before separate name fields
+// "Dela Cruz, Juan Santos Jr.". Accounts created before separate name fields
 // existed have only `name`, which is shown unchanged.
 export const formatLastFirst = (user) => {
   if (!user) return "";
   const last = (user.lastName || "").trim();
-  const given = [user.firstName, user.middleName].map((part) => (part || "").trim()).filter(Boolean).join(" ");
+  const given = [user.firstName, user.middleName, user.nameExtension].map((part) => (part || "").trim()).filter(Boolean).join(" ");
   if (last && given) return `${last}, ${given}`;
   return last || given || user.name || "";
 };

@@ -5,7 +5,7 @@ const Payment = require("../Models/Payments");
 const Ledger = require("../Models/Ledger");
 const ExamPermit = require("../Models/ExamPermit");
 const { escapeRegex, paginate, readDateRange, readPaging, readSort } = require("../utils/pagination");
-const { hasNameParts, readNameParts, validNameParts } = require("../utils/personName");
+const { hasNameParts, readNameParts, nameProblem, validStudentId, studentEmail } = require("../utils/personName");
 const { courseScope, inScope, resolveCourse, allCoursePatterns } = require("../utils/adminScope");
 
 // Students whose stored course matches no catalogue course (old typed values).
@@ -18,7 +18,6 @@ const DEPARTMENT_REQUIRED = "Choose the department this Admin manages.";
 const OUT_OF_SCOPE = "This student belongs to another department.";
 
 const SUPER_ADMIN_TAKEN = "Only one Super Admin account is allowed.";
-const NAME_REQUIRED = "First name and last name are required.";
 
 const { currentSchoolYear } = require("../config/schoolYear");
 
@@ -211,11 +210,18 @@ const createUser = async (req, res) => {
   try {
     // The school year is always the current one (real time), whatever was sent.
     req.body.schoolYear = currentSchoolYear();
-    const { studentId, email, password, role, course, yearLevel, semester, schoolYear } = req.body;
+    const { password, role, course, yearLevel, semester, schoolYear } = req.body;
+    const studentId = String(req.body.studentId ?? "").trim();
     const nameParts = readNameParts(req.body);
 
     // Validate required fields
-    if (!validNameParts(nameParts)) return res.status(400).json({ message: NAME_REQUIRED });
+    const nameError = nameProblem(nameParts);
+    if (nameError) return res.status(400).json({ message: nameError });
+    if (role === "student" && !validStudentId(studentId)) {
+      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
+    }
+    // Student emails follow the institutional format; staff emails are typed in.
+    const email = role === "student" ? studentEmail({ ...nameParts, studentId }) : String(req.body.email ?? "").trim();
     if (!validEmail(email) || !password || password.length < 6 || !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ message: "Choose a role and enter a valid email and a password of at least 6 characters." });
     }
@@ -250,7 +256,8 @@ const createUser = async (req, res) => {
       studentId: studentId || undefined,
       ...nameParts,
       middleName: nameParts.middleName || undefined,
-      name: [nameParts.firstName, nameParts.middleName, nameParts.lastName].filter(Boolean).join(" "),
+      nameExtension: nameParts.nameExtension || undefined,
+      name: [nameParts.firstName, nameParts.middleName, nameParts.lastName, nameParts.nameExtension].filter(Boolean).join(" "),
       email,
       password: hashedPassword,
       role: safeRole,
@@ -318,6 +325,10 @@ const updateUser = async (req, res) => {
       ]);
       if (hasRecords.some(Boolean)) return res.status(409).json({ message: "Student ID or role cannot change while financial or permit records exist." });
     }
+    const nextRole = role !== undefined && ALLOWED_ROLES.includes(role) ? role : user.role;
+    if (nextRole === "student" && studentId !== undefined && studentId !== user.studentId && !validStudentId(studentId)) {
+      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
+    }
     if (studentId && studentId !== user.studentId && await User.exists({ studentId, _id: { $ne: id } })) {
       return res.status(409).json({ message: "ID already exists." });
     }
@@ -355,10 +366,12 @@ const updateUser = async (req, res) => {
 
     if (hasNameParts(req.body)) {
       const parts = readNameParts(req.body, user);
-      if (!validNameParts(parts)) return res.status(400).json({ message: NAME_REQUIRED });
+      const nameError = nameProblem(parts, user);
+      if (nameError) return res.status(400).json({ message: nameError });
       user.firstName = parts.firstName;
       user.middleName = parts.middleName || undefined;
       user.lastName = parts.lastName;
+      user.nameExtension = parts.nameExtension || undefined;
     } else if (name !== undefined) {
       user.name = name;
     }

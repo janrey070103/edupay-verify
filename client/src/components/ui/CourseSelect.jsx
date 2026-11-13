@@ -28,6 +28,8 @@ const CourseSelect = ({
         id={`${idPrefix}-course`}
         value={course || ""}
         disabled={disabled}
+        required={required}
+        aria-required={required ? "true" : undefined}
         onChange={(event) => onChange(event.target.value)}
         className={className}
       >
