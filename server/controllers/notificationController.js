@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Notification = require("../Models/Notification");
 const User = require("../Models/User");
 const { describe, titlesFor, CATEGORIES } = require("../utils/notificationMeta");
+const { reconcileRegistrationNotices } = require("../services/registrationNotices");
 
 // Cashier and Super Admin notifications are shared by everyone in the role;
 // each person's read status is kept in `readBy`. Everyone else has a personal
@@ -67,6 +68,12 @@ const getMyNotifications = async (req, res) => {
     const { base, shared } = await readFeed(req, res);
     if (base === null) return undefined;
     if (base === undefined) return res.json({ data: [], meta: { limit: 20, total: 0, unread: 0, nextCursor: null } });
+    // Registration notices of students who are no longer pending become
+    // "User is verified" / "User is rejected" before they are shown.
+    if (req.user.role === "admin" || req.user.role === "super_admin") {
+      await reconcileRegistrationNotices().catch((error) =>
+        console.error("Could not settle registration notifications:", error.message));
+    }
 
     const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
     const ascending = req.query.order === "asc";

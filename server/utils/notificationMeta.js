@@ -18,6 +18,9 @@ const META = {
   "Exams Without Proctor": { category: "exams", link: { admin: "/exam-schedule" } },
   "Exam Permit Verified": { category: "exams", link: { student: "/student-exams" } },
   "New Student Registration": { category: "accounts", link: { admin: "/pending-students", super_admin: "/user-management" } },
+  // A "New Student Registration" becomes one of these once it is acted on.
+  "User is verified": { category: "accounts", link: { admin: "/admin", super_admin: "/user-management" } },
+  "User is rejected": { category: "accounts", link: { admin: "/admin", super_admin: "/user-management" } },
   "Students Waiting for Verification": { category: "accounts", link: { admin: "/pending-students" } },
   "Account Verified": { category: "accounts" },
   "Account Rejected": { category: "accounts" },

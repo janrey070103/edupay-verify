@@ -101,4 +101,49 @@ const getEligibilityReport = async (req, res) => {
   }
 };
 
-module.exports = { getAdminSummary, getEligibilityReport };
+// GET /api/admin/verified-students: verified (enrolled) students of the Admin's
+// department, with who verified them and when. `verifiedBy=me` narrows it to
+// the students this Admin verified. Sorted newest verification first.
+const getVerifiedStudents = async (req, res) => {
+  try {
+    const paging = readPaging(req.query, { limit: 25 });
+    const and = [await courseScope(req)];
+    const search = String(req.query.search || "").trim().slice(0, 64);
+    if (search) {
+      const pattern = new RegExp(escapeRegex(search), "i");
+      and.push({ $or: [{ studentId: pattern }, { name: pattern }, { lastName: pattern }, { firstName: pattern }, { email: pattern }] });
+    }
+    if (req.query.course) and.push({ course: String(req.query.course) });
+    if (Number(req.query.yearLevel)) and.push({ yearLevel: Number(req.query.yearLevel) });
+    if (req.query.verifiedBy === "me") and.push({ verifiedBy: req.user.id });
+    const filter = { role: "student", verificationStatus: "verified", $and: and };
+
+    const direction = req.query.order === "asc" ? 1 : -1;
+    const sort = req.query.sort === "name"
+      ? { lastName: direction, firstName: direction, name: direction, _id: direction }
+      : { verifiedAt: direction, createdAt: direction, _id: direction };
+    const [students, total, mine] = await Promise.all([
+      User.find(filter).select("studentId name firstName middleName lastName nameExtension email course yearLevel semester schoolYear isActive verifiedAt verifiedBy")
+        .collation({ locale: "en", strength: 1 }).sort(sort).skip(paging.skip).limit(paging.limit).lean(),
+      User.countDocuments(filter),
+      User.countDocuments({ role: "student", verificationStatus: "verified", verifiedBy: req.user.id, $and: [and[0]] }),
+    ]);
+
+    const verifierIds = [...new Set(students.map((s) => s.verifiedBy && String(s.verifiedBy)).filter(Boolean))];
+    const verifiers = new Map((await User.find({ _id: { $in: verifierIds } }).select("name role").lean())
+      .map((user) => [String(user._id), user]));
+    const data = students.map(({ verifiedBy, ...student }) => {
+      const verifier = verifiedBy ? verifiers.get(String(verifiedBy)) : null;
+      return { ...student,
+        verifiedByName: verifier?.name || null,
+        verifiedByRole: verifier?.role || null,
+        verifiedByMe: Boolean(verifiedBy) && String(verifiedBy) === String(req.user.id) };
+    });
+    return res.json({ data, meta: { page: paging.page, limit: paging.limit, total,
+      totalPages: Math.max(1, Math.ceil(total / paging.limit)), verifiedByMe: mine } });
+  } catch (error) {
+    return res.status(500).json({ message: "Could not load verified students." });
+  }
+};
+
+module.exports = { getAdminSummary, getEligibilityReport, getVerifiedStudents };

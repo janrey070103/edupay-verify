@@ -31,7 +31,7 @@ const register = async (req, res) => {
 
     // Validate required fields
     if (!studentId || !email || !password || !course ||
-        !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 6 ||
+        !Number.isInteger(Number(yearLevel)) || Number(yearLevel) < 1 || Number(yearLevel) > 4 ||
         !["1st Semester", "2nd Semester"].includes(semester) ||
         !/^\d{4}-\d{4}$/.test(String(schoolYear || "")) ||
         Number(String(schoolYear).slice(5)) !== Number(String(schoolYear).slice(0, 4)) + 1) {
@@ -111,7 +111,9 @@ const register = async (req, res) => {
 // Login
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    // Emails are stored in lowercase; "Aguirre.0001@..." signs in the same as "aguirre.0001@...".
+    const email = String(req.body.email ?? "").trim().toLowerCase();
 
     const user = await User.findOne({ email });
 

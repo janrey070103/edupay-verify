@@ -17,10 +17,13 @@ const userSchema = new mongoose.Schema(
     // Jr., Sr., III, IV ... (optional)
     nameExtension: { type: String, trim: true },
 
+    // Always stored in lowercase so sign-in and duplicate checks ignore capitals.
     email: {
       type: String,
       required: true,
       unique: true,
+      trim: true,
+      lowercase: true,
     },
 
     password: {

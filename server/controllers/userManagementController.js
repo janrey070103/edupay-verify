@@ -13,6 +13,7 @@ const { courseScope, inScope, resolveCourse, allCoursePatterns } = require("../u
 const unlistedCourseFilter = async () => ({ role: "student", $nor: [{ course: { $in: await allCoursePatterns() } }] });
 const { courseProblem } = require("../utils/courseRules");
 const { DEPARTMENT_CODES } = require("../config/catalog");
+const { settleRegistrationNotices: settleNotices } = require("../services/registrationNotices");
 
 const DEPARTMENT_REQUIRED = "Choose the department this Admin manages.";
 const OUT_OF_SCOPE = "This student belongs to another department.";
@@ -25,7 +26,7 @@ const ALLOWED_ROLES = ["student", "cashier", "admin", "teacher", "super_admin"];
 const validEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || ""));
 const validAcademics = ({ course, yearLevel, semester, schoolYear }) =>
   Boolean(String(course || "").trim() && Number.isInteger(Number(yearLevel)) && Number(yearLevel) >= 1 &&
-    Number(yearLevel) <= 6 && ["1st Semester", "2nd Semester"].includes(semester) &&
+    Number(yearLevel) <= 4 && ["1st Semester", "2nd Semester"].includes(semester) &&
     /^\d{4}-\d{4}$/.test(String(schoolYear || "")) &&
     Number(String(schoolYear).slice(5)) === Number(String(schoolYear).slice(0, 4)) + 1);
 
@@ -111,6 +112,22 @@ const getPendingStudents = async (req, res) => {
   }
 };
 
+// Once a pending student is verified or rejected, every Admin / Super Admin
+// "New Student Registration" notice about them is rewritten so nobody acts on
+// a request that is already settled. The student's decision is already saved,
+// so a failure here is only logged (the next notifications load retries it).
+const settleRegistrationNotices = async (user, status, actor) => {
+  try {
+    await settleNotices(user, status, actor);
+  } catch (error) {
+    console.error("Could not update registration notifications:", error.message);
+  }
+};
+
+const actorOf = async (req) => {
+  try { return (await User.findById(req.user.id).select("name role").lean()) || {}; } catch { return {}; }
+};
+
 // PATCH verify/approve a student
 const verifyStudent = async (req, res) => {
   try {
@@ -148,6 +165,7 @@ const verifyStudent = async (req, res) => {
       title: "Account Verified",
       message: "Your account has been verified by the admin. You can now log in and use EduPay Verify.",
     });
+    await settleRegistrationNotices(user, "verified", await actorOf(req));
 
     const result = user.toObject();
     delete result.password;
@@ -195,6 +213,7 @@ const rejectStudent = async (req, res) => {
       title: "Account Rejected",
       message: `Your account registration has been rejected by the admin.${reasonText}`,
     });
+    await settleRegistrationNotices(user, "rejected", await actorOf(req));
 
     const result = user.toObject();
     delete result.password;
@@ -221,7 +240,7 @@ const createUser = async (req, res) => {
       return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
     }
     // Student emails follow the institutional format; staff emails are typed in.
-    const email = role === "student" ? studentEmail({ ...nameParts, studentId }) : String(req.body.email ?? "").trim();
+    const email = role === "student" ? studentEmail({ ...nameParts, studentId }) : String(req.body.email ?? "").trim().toLowerCase();
     if (!validEmail(email) || !password || password.length < 6 || !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ message: "Choose a role and enter a valid email and a password of at least 6 characters." });
     }
@@ -234,6 +253,9 @@ const createUser = async (req, res) => {
     }
     if (role === "admin" && !DEPARTMENT_CODES.includes(req.body.department)) {
       return res.status(400).json({ message: DEPARTMENT_REQUIRED });
+    }
+    if (role === "teacher" && req.body.department && !DEPARTMENT_CODES.includes(req.body.department)) {
+      return res.status(400).json({ message: "Choose a valid department." });
     }
     if (role === "super_admin" && await User.exists({ role: "super_admin" })) {
       return res.status(409).json({ message: SUPER_ADMIN_TAKEN });
@@ -262,7 +284,7 @@ const createUser = async (req, res) => {
       password: hashedPassword,
       role: safeRole,
       course: safeRole === "student" ? course.trim() : undefined,
-      department: safeRole === "admin" ? req.body.department : undefined,
+      department: safeRole === "admin" || (safeRole === "teacher" && req.body.department) ? req.body.department : undefined,
       yearLevel: safeRole === "student" ? Number(yearLevel) : undefined,
       semester: safeRole === "student" ? semester.trim() : undefined,
       schoolYear: safeRole === "student" ? schoolYear.trim() : undefined,
@@ -297,6 +319,7 @@ const updateUser = async (req, res) => {
   try {
     // The school year is always the current one (real time), whatever was sent.
     req.body.schoolYear = currentSchoolYear();
+    if (req.body.email !== undefined) req.body.email = String(req.body.email).trim().toLowerCase();
     const { id } = req.params;
     const {
       name,
@@ -355,11 +378,16 @@ const updateUser = async (req, res) => {
       user.role = ALLOWED_ROLES.includes(role) ? role : user.role;
     }
 
-    // Admins manage exactly one department; other roles carry none.
+    // Admins manage exactly one department; a Teacher may belong to one
+    // (informational only); other roles carry none.
     if (user.role === "admin") {
       const department = req.body.department !== undefined ? req.body.department : user.department;
       if (!DEPARTMENT_CODES.includes(department)) return res.status(400).json({ message: DEPARTMENT_REQUIRED });
       user.department = department;
+    } else if (user.role === "teacher") {
+      const department = req.body.department !== undefined ? req.body.department : user.department;
+      if (department && !DEPARTMENT_CODES.includes(department)) return res.status(400).json({ message: "Choose a valid department." });
+      user.department = department || undefined;
     } else {
       user.department = undefined;
     }
@@ -504,7 +532,7 @@ const activateUser = async (req, res) => {
 const listTeachers = async (_req, res) => {
   try {
     const teachers = await User.find({ role: "teacher", isActive: { $ne: false } })
-      .select("name firstName middleName lastName email studentId").sort({ lastName: 1, name: 1 }).limit(500).lean();
+      .select("name firstName middleName lastName nameExtension email studentId department").sort({ lastName: 1, name: 1 }).limit(500).lean();
     res.json(teachers);
   } catch (error) {
     res.status(500).json({ message: "Could not load teachers." });

@@ -19,7 +19,7 @@ export default function ProctorCombobox({ teachers, value, onChange, disabled = 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return teachers;
-    return teachers.filter((teacher) => [teacherLabel(teacher), teacher.email, teacher.studentId]
+    return teachers.filter((teacher) => [teacherLabel(teacher), teacher.email, teacher.studentId, teacher.department]
       .some((field) => String(field || "").toLowerCase().includes(needle)));
   }, [teachers, query]);
 
@@ -82,7 +82,7 @@ export default function ProctorCombobox({ teachers, value, onChange, disabled = 
               onClick={() => choose(teacher)}
               className={`cursor-pointer px-3 py-2 ${index === active ? "bg-blue-50" : ""} ${teacher._id === value ? "font-semibold text-blue-700" : "text-gray-800"}`}>
               <span className="block truncate">{teacherLabel(teacher)}</span>
-              <span className="block truncate text-xs text-gray-500">{[teacher.studentId, teacher.email].filter(Boolean).join(" · ")}</span>
+              <span className="block truncate text-xs text-gray-500">{[teacher.studentId, teacher.department, teacher.email].filter(Boolean).join(" · ")}</span>
             </li>
           ))}
         </ul>

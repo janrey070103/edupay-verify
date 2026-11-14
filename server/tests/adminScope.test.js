@@ -11,6 +11,9 @@ const { courseProblem } = require("../utils/courseRules");
 const { verifyStudent } = require("../controllers/userManagementController");
 const { createExam } = require("../controllers/examController");
 
+// Verifying rewrites the Admins' registration notices; no database in these tests.
+Notification.updateMany = async () => ({});
+
 const response = () => ({ statusCode: 200, body: null,
   status(code) { this.statusCode = code; return this; },
   json(value) { this.body = value; return this; },

@@ -192,7 +192,7 @@ const UserManagement = () => {
       setDrawerError("Choose the department this Admin manages."); return;
     }
     if (form.role === "student" && (!form.studentId.trim() || !form.course.trim() ||
-      !Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 6 ||
+      !Number.isInteger(Number(form.yearLevel)) || Number(form.yearLevel) < 1 || Number(form.yearLevel) > 4 ||
       !["1st Semester", "2nd Semester"].includes(form.semester))) {
       setDrawerError("Complete the student's ID and valid academic information."); return;
     }
@@ -268,7 +268,7 @@ const UserManagement = () => {
   const updateField = (field, value) =>
     setForm((prev) => field === "role" && value !== "student" ?
       { ...prev, role: value, course: "", yearLevel: "", semester: "", schoolYear: "",
-        department: value === "admin" ? prev.department : "" } :
+        department: value === "admin" || value === "teacher" ? prev.department : "" } :
       { ...prev, [field]: value });
 
   // ---- Filters ---------------------------------------------------------------
@@ -321,6 +321,7 @@ const UserManagement = () => {
       header: "Course / Department",
       priority: "meta",
       render: (user) => (user.role === "admin" ? (user.department || "No department")
+        : user.role === "teacher" ? (user.department || "—")
         : user.role === "student" ? (user.course || "—") : "—"),
     },
     {
@@ -652,7 +653,7 @@ const UserManagement = () => {
               id="um-email"
               type="email"
               value={email}
-              onChange={(e) => updateField("email", e.target.value)}
+              onChange={(e) => updateField("email", e.target.value.toLowerCase())}
               readOnly={autoEmail}
               aria-readonly={autoEmail ? "true" : undefined}
               placeholder={autoEmail ? "Fills in from the last name and Student ID" : undefined}
@@ -686,16 +687,23 @@ const UserManagement = () => {
             />
           </div>
 
-          {form.role === "admin" && (
+          {(form.role === "admin" || form.role === "teacher") && (
             <div>
               <label htmlFor="um-department" className="mb-1.5 block text-sm font-medium text-gray-700">
-                Department <span className="text-red-500">*</span>
+                Department {form.role === "admin"
+                  ? <span className="text-red-500">*</span>
+                  : <span className="font-normal text-gray-400">(optional)</span>}
               </label>
-              <select id="um-department" value={form.department} onChange={(e) => updateField("department", e.target.value)} className={INPUT}>
-                <option value="">Select department</option>
+              <select id="um-department" value={form.department} onChange={(e) => updateField("department", e.target.value)}
+                required={form.role === "admin"} className={INPUT}>
+                <option value="">{form.role === "admin" ? "Select department" : "No department"}</option>
                 {departments.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
               </select>
-              <p className="mt-1 text-xs text-gray-500">This Admin will only see students and exams of this department's courses.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {form.role === "admin"
+                  ? "This Admin will only see students and exams of this department's courses."
+                  : "The department this Teacher belongs to. They can still proctor exams of any department."}
+              </p>
             </div>
           )}
 
@@ -716,15 +724,19 @@ const UserManagement = () => {
                 >
                   Year Level
                 </label>
-                <input
+                <select
                   id="um-yearLevel"
-                  type="number"
-                  min="1"
-                  max="6"
                   value={form.yearLevel}
                   onChange={(e) => updateField("yearLevel", e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                />
+                  required
+                  className="min-h-11 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">Select year</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
               </div>
             </div>
 
