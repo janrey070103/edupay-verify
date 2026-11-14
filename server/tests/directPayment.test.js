@@ -75,8 +75,9 @@ test("receipt uploads need the amount sent and the reference number; duplicates 
   const { createPayment } = require("../controllers/paymentController");
   const analyzer = require("../services/ocr/receiptAnalyzer");
   const Notification = require("../Models/Notification");
-  const originals = { findById: User.findById, find: Payment.find, create: Payment.create, notify: Notification.create, analyze: analyzer.analyzeReceipt };
+  const originals = { findById: User.findById, find: Payment.find, create: Payment.create, notify: Notification.create, analyze: analyzer.analyzeReceipt, ledger: Ledger.findOne };
   User.findById = async () => ({ role: "student", studentId: "22-0989-552", name: "Student", schoolYear: "2026-2027" });
+  Ledger.findOne = () => ({ lean: async () => null }); // no payments yet
   const base = { user: { id: "u1" }, file: { path: "https://example.invalid/r.jpg" },
     body: { examCoverage: "Prelim", paymentDescription: "Tuition - Prelim", paymentChannel: "palawan" } };
   try {
@@ -117,7 +118,7 @@ test("receipt uploads need the amount sent and the reference number; duplicates 
     }
   } finally {
     User.findById = originals.findById; Payment.find = originals.find; Payment.create = originals.create;
-    Notification.create = originals.notify; analyzer.analyzeReceipt = originals.analyze;
+    Notification.create = originals.notify; analyzer.analyzeReceipt = originals.analyze; Ledger.findOne = originals.ledger;
   }
 });
 
@@ -183,5 +184,47 @@ test("full tuition payment: needs a balance, one at a time, short amounts flagge
     Payment.find = saved.find; Payment.create = saved.create; Payment.findOneAndUpdate = saved.fou;
     ExamPermit.findOneAndUpdate = saved.permit; Notification.create = saved.notify; mongoose.startSession = saved.session;
     prep.downloadImage = saved.download; prep.standardImage = saved.standard; prep.inkIsolatedImage = saved.ink; engine.recognize = saved.recognize;
+  }
+});
+
+test("a fully paid student cannot upload another receipt, and a cleared term cannot be paid again", async () => {
+  const { createPayment } = require("../controllers/paymentController");
+  const originals = { findById: User.findById, ledger: Ledger.findOne };
+  User.findById = async () => ({ role: "student", studentId: "S1", name: "Student" });
+  const body = { examCoverage: "Prelim", paymentDescription: "Tuition - Prelim", paymentChannel: "palawan", claimedAmount: "5000", referenceNumber: "ABC12345" };
+  const req = (extra = {}) => ({ user: { id: "u1" }, file: { path: "https://example.invalid/r.jpg" }, body: { ...body, ...extra } });
+  try {
+    Ledger.findOne = () => ({ lean: async () => ({ fullyPaid: true, remainingBalance: 0, prelim: true, midterm: true, preFinal: true, final: true }) });
+    const paid = response();
+    await createPayment(req(), paid);
+    assert.equal(paid.statusCode, 409);
+    assert.match(paid.body.message, /already fully paid/);
+    const fullTuition = response();
+    await createPayment(req({ paymentType: "Full Tuition", paymentDescription: "Full Tuition Payment", examCoverage: "" }), fullTuition);
+    assert.equal(fullTuition.statusCode, 409);
+
+    Ledger.findOne = () => ({ lean: async () => ({ fullyPaid: false, remainingBalance: 15000, prelim: true }) });
+    const cleared = response();
+    await createPayment(req(), cleared);
+    assert.equal(cleared.statusCode, 409);
+    assert.match(cleared.body.message, /already cleared for Prelim/);
+  } finally { User.findById = originals.findById; Ledger.findOne = originals.ledger; }
+});
+
+test("the cashier overview cannot record a payment for a fully paid student", async () => {
+  const originals = { findOne: User.findOne, ledger: Ledger.findOne, count: Payment.countDocuments, find: Payment.find };
+  User.findOne = () => ({ select: () => ({ lean: async () => ({ studentId: "S1", isActive: true, verificationStatus: "verified" }) }) });
+  Ledger.findOne = () => ({ lean: async () => ({ totalTuition: 20000, paidAmount: 20000, remainingBalance: 0, fullyPaid: true,
+    prelim: true, midterm: true, preFinal: true, final: true }) });
+  Payment.countDocuments = async () => 0;
+  Payment.find = () => ({ sort: () => ({ limit: () => ({ select: () => ({ lean: async () => [] }) }) }) });
+  try {
+    const res = response();
+    await getStudentPaymentOverview({ params: { studentId: "S1" } }, res);
+    assert.equal(res.body.canPay, false);
+    assert.equal(res.body.ledger.fullyPaid, true);
+  } finally {
+    User.findOne = originals.findOne; Ledger.findOne = originals.ledger;
+    Payment.countDocuments = originals.count; Payment.find = originals.find;
   }
 });

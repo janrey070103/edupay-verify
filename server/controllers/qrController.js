@@ -84,7 +84,9 @@ const scanPermit = async (req, res) => {
     const exam = await Exam.findById(examId);
     if (!exam) return res.status(404).json({ message: "Exam not found." });
     if (exam.status === "Cancelled") return res.status(409).json({ message: "This exam was cancelled." });
-    if (String(exam.proctorId) !== String(req.user.id)) {
+    // The whole-exam proctor, or the proctor of one of its sections.
+    const mySection = (exam.sections || []).find((section) => String(section.proctorId) === String(req.user.id));
+    if (String(exam.proctorId) !== String(req.user.id) && !mySection) {
       return res.status(403).json({ message: "You are not the assigned proctor for this exam." });
     }
     if (manilaDay(exam.examDate) !== manilaDay(new Date())) {
@@ -122,7 +124,7 @@ const scanPermit = async (req, res) => {
     const recorded = await ExamPermit.updateOne(
       { _id: permit._id, permitStatus: "Valid", "scans.examId": { $ne: exam._id } },
       { $push: { scans: { teacherId: req.user.id, teacherName, studentId: permit.studentId, examType: exam.examType,
-        examId: exam._id, subject: exam.subject, subjectCode: exam.subjectCode, room: exam.room, course: exam.course,
+        examId: exam._id, subject: exam.subject, subjectCode: exam.subjectCode, room: mySection?.room || exam.room, course: exam.course,
         courseYear: exam.courseYear, examDate: exam.examDate, action: "Verified", scannedAt: verifiedAt } } },
     );
     if (!recorded.matchedCount) {

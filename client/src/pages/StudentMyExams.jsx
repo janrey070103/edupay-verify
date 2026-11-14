@@ -85,6 +85,11 @@ export default function StudentMyExams() {
                     {TERM_LABELS[event.examType] || event.examType} · {fmt(event.examDate, { month: "short", day: "numeric", weekday: "short" })} · {timeRange(event)}
                     {event.room ? ` · Room ${event.room}` : ""}
                   </p>
+                  {event.sections?.length > 0 && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Rooms by section: {event.sections.map((section) => `${section.name}${section.room ? ` (${section.room})` : ""}`).join(", ")}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

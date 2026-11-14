@@ -2,6 +2,7 @@ const Exam = require("../Models/Exam");
 const ExamPermit = require("../Models/ExamPermit");
 const User = require("../Models/User");
 const { resolveCourse } = require("../utils/adminScope");
+const { forTeacher, proctoredBy } = require("../services/examSections");
 
 const manilaDay = (value) => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
@@ -50,7 +51,7 @@ const getMyExamCalendar = async (req, res) => {
     const [exams, permits] = await Promise.all([
       Exam.find({ course: course.code, examDate: { $gte: from, $lt: to },
         $or: [{ courseYear: student.yearLevel }, { courseYear: null }, { courseYear: { $exists: false } }] })
-        .select("subject subjectCode examType examKind examDate schedule startTime endTime room proctorName status courseYear course")
+        .select("subject subjectCode examType examKind examDate schedule startTime endTime room proctorName status courseYear course sections.name sections.room sections.proctorName")
         .sort({ examDate: 1 }).lean(),
       ExamPermit.find({ studentId: student.studentId }).select("examType scans permitStatus").lean(),
     ]);
@@ -87,9 +88,11 @@ const proctorStatus = (exam, now = new Date()) => {
 // the students whose permits were verified for it (and when) and the room capacity.
 const getTeacherExamCalendar = async (req, res) => {
   try {
-    const exams = await Exam.find({ proctorId: req.user.id })
-      .select("subject subjectCode examType examKind examDate schedule startTime endTime room capacity status course courseYear courseSection proctorName")
-      .sort({ examDate: 1 }).lean();
+    const exams = (await Exam.find(proctoredBy(req.user.id))
+      .select("subject subjectCode examType examKind examDate schedule startTime endTime room capacity status course courseYear courseSection proctorName sections")
+      .sort({ examDate: 1 }).lean())
+      // A section proctor sees their own section's room and name.
+      .map((exam) => { const { sections, ...rest } = forTeacher(exam, req.user.id); return rest; });
     const ids = exams.map((exam) => exam._id);
     const verified = ids.length ? await ExamPermit.aggregate([
       { $match: { "scans.examId": { $in: ids } } },

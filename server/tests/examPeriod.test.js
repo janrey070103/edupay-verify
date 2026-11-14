@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const Exam = require("../Models/Exam");
+const User = require("../Models/User");
 const Course = require("../Models/Course");
 const { clearCourseCache } = require("../services/catalogService");
 const { examPeriodWindow, examPeriodProblem } = require("../config/examWindows");
@@ -53,8 +54,14 @@ const withExamStubs = async (t, regularDays, run) => {
   }
 };
 const admin = { id: "64b0000000000000000000a1", role: "admin", department: "ICT" };
+// Exams now always have a year, a capacity and at least one section with a proctor.
+const SECTION_FIELDS = { courseYear: 1, capacity: 40, sections: [{ letter: "A", room: "Room 201", proctorId: "64b0000000000000000000c1" }] };
+User.find = () => ({ select: () => ({ lean: async () => [{ _id: "64b0000000000000000000c1", name: "Teacher One", email: "t1@x" }] }) });
+const realUserFindById = User.findById;
+User.findById = (id) => (id === "64b0000000000000000000c1" ? { select: () => ({ lean: async () => null }) } : realUserFindById.call(User, id));
+
 const body = (overrides) => ({ examDate: manila("2026-11-20").toISOString(), examType: "PreFinal", subject: "Networks",
-  subjectCode: "IT301", course: "BSIT", schedule: "8-10", ...overrides });
+  subjectCode: "IT301", course: "BSIT", schedule: "8-10", ...SECTION_FIELDS, ...overrides });
 
 test("create: a regular exam outside the period and an early special exam are refused", async (t) => {
   await withExamStubs(t, ["2026-11-20"], async ({ queries, created }) => {

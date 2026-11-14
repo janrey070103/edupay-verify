@@ -31,7 +31,9 @@ export default function UploadReceipt() {
   const [paymentType, setPaymentType] = useState("Term"); // "Term" | "Full Tuition"
   const [ledger, setLedger] = useState(null);
   const remaining = Math.max(0, Number(ledger?.remainingBalance) || 0);
-  const fullyPaid = Boolean(ledger?.fullyPaid);
+  // Fully paid: no balance left (the server refuses any further receipt).
+  const fullyPaid = Boolean(ledger?.fullyPaid) || (ledger?.hasLedger && remaining <= 0);
+  const clearedTerms = ledger?.terms || {};
   const [channel, setChannel] = useState("");
   const channelRef = useRef(null);
   const [file, setFile] = useState(null);
@@ -90,6 +92,18 @@ export default function UploadReceipt() {
     <Link to="/history" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-sti-blue px-5 font-bold text-white">View payment history</Link>
   </section>;
 
+  if (fullyPaid) return <section className="w-full rounded-xl border border-green-200 bg-white p-5 shadow-sm" aria-live="polite">
+    <h2 className="text-xl font-bold text-green-800">Your tuition is fully paid</h2>
+    <p className="mt-2 text-sm text-gray-600">
+      You have paid {peso(Number(ledger.paidAmount) || 0)} of {peso(Number(ledger.totalTuition) || 0)}, and all four exam terms are cleared.
+      No more payments are needed, so receipts can no longer be uploaded.
+    </p>
+    <div className="mt-6 flex flex-wrap gap-3">
+      <Link to="/history" className="inline-flex min-h-11 items-center rounded-lg bg-sti-blue px-5 font-bold text-white">View payment history</Link>
+      <Link to="/student-exams" className="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-5 font-bold text-gray-700">My exams</Link>
+    </div>
+  </section>;
+
   return <form onSubmit={submit} noValidate className="w-full rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
     <h2 className="text-xl font-bold text-gray-800">Upload Receipt</h2>
     <p className="mt-1 text-sm text-gray-500">Your receipt will be reviewed by a cashier before it affects your ledger.</p>
@@ -117,8 +131,15 @@ export default function UploadReceipt() {
           <select id="upload-description" ref={descriptionRef} value={term} onChange={(e) => setTerm(e.target.value)}
             className="min-h-11 w-full rounded-lg border border-gray-200 px-3 focus:border-sti-blue focus:outline-none">
             <option value="">Select an examination term</option>
-            {TERMS.map((value) => <option key={value} value={value}>Tuition - {value}</option>)}
-          </select></div>
+            {TERMS.map((value) => (
+              <option key={value} value={value} disabled={clearedTerms[value]}>
+                Tuition - {value}{clearedTerms[value] ? " (already paid)" : ""}
+              </option>
+            ))}
+          </select>
+          {TERMS.some((value) => clearedTerms[value]) && (
+            <p className="mt-1 text-xs text-gray-500">Terms you have already paid cannot be selected.</p>
+          )}</div>
       ) : (
         <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
           This pays your whole remaining tuition{remaining > 0 ? <> of <strong>{peso(remaining)}</strong></> : ""} for{" "}

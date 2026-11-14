@@ -4,6 +4,7 @@ const User = require("../Models/User");
 const { DEPARTMENTS } = require("../config/catalog");
 const { courseScope, scopeCodes } = require("../utils/adminScope");
 const { escapeRegex, readPaging } = require("../utils/pagination");
+const { MISSING_PROCTOR } = require("../services/examSections");
 
 const TERM_FIELD = { Prelim: "prelim", Midterm: "midterm", PreFinal: "preFinal", Final: "final" };
 const DAY = 24 * 60 * 60 * 1000;
@@ -21,7 +22,7 @@ const getAdminSummary = async (req, res) => {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
     const active = { status: { $ne: "Cancelled" } };
-    const upcomingUnassigned = { ...active, examDate: { $gte: today }, proctorId: null, $and: [examScope] };
+    const upcomingUnassigned = { ...active, examDate: { $gte: today }, $and: [examScope, MISSING_PROCTOR] };
 
     const [pendingStudents, examsThisMonth, examsNext7Days, unassignedCount,
       unassignedExams, examsWithoutCourse, eligibility] = await Promise.all([

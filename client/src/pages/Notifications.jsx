@@ -63,6 +63,9 @@ const getNotificationIcon = (title) => {
 const tabParams = (tab) => (tab === "unread" ? { unread: "1" } : tab === "all" ? {} : { category: tab });
 
 const Notifications = () => {
+  // The Super Admin only receives account notifications, so the Payments and Exams tabs are hidden.
+  const [tabs] = useState(() => (localStorage.getItem("role") === "super_admin"
+    ? TABS.filter((item) => !["payments", "exams"].includes(item.key)) : TABS));
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -180,7 +183,7 @@ const Notifications = () => {
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Notification filter">
-          {TABS.map((item) => (
+          {tabs.map((item) => (
             <button
               key={item.key}
               type="button"

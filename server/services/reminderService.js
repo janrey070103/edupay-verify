@@ -1,4 +1,5 @@
 const Notification = require("../Models/Notification");
+const { MISSING_PROCTOR } = require("./examSections");
 const TermSchedule = require("../Models/TermSchedule");
 const Ledger = require("../Models/Ledger");
 const Exam = require("../Models/Exam");
@@ -83,9 +84,9 @@ const adminDigests = async (now = new Date()) => {
   for (const admin of admins) {
     const req = adminReq(admin.department);
     const [noProctor, waiting] = await Promise.all([
-      Exam.countDocuments({ status: { $ne: "Cancelled" }, proctorId: null,
+      Exam.countDocuments({ status: { $ne: "Cancelled" },
         examDate: { $gte: now, $lte: new Date(now.getTime() + PROCTOR_WINDOW_DAYS * DAY) },
-        $and: [await courseScope(req, "course", { includeUnassigned: true })] }),
+        $and: [await courseScope(req, "course", { includeUnassigned: true }), MISSING_PROCTOR] }),
       User.countDocuments({ role: "student", verificationStatus: "pending",
         createdAt: { $lt: new Date(now.getTime() - PENDING_WAIT_DAYS * DAY) }, $and: [await courseScope(req)] }),
     ]);

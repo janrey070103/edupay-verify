@@ -236,6 +236,7 @@ const createUser = async (req, res) => {
     // Validate required fields
     const nameError = nameProblem(nameParts);
     if (nameError) return res.status(400).json({ message: nameError });
+    if (role !== "student" && !studentId) return res.status(400).json({ message: "Employee ID is required." });
     if (role === "student" && !validStudentId(studentId)) {
       return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
     }
@@ -404,7 +405,10 @@ const updateUser = async (req, res) => {
       user.name = name;
     }
     if (email !== undefined) user.email = email;
-    if (studentId !== undefined) user.studentId = studentId || undefined;
+    if (nextRole !== "student" && !String(studentId !== undefined ? studentId : user.studentId || "").trim()) {
+      return res.status(400).json({ message: "Employee ID is required." });
+    }
+    if (studentId !== undefined) user.studentId = String(studentId).trim() || undefined;
     if (user.role === "student") {
       const academic = { course: course ?? user.course, yearLevel: yearLevel ?? user.yearLevel,
         semester: semester ?? user.semester, schoolYear: schoolYear ?? user.schoolYear };

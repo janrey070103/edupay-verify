@@ -3,8 +3,6 @@ import {
   createExam,
   getAllExams,
   getExamsForMonth,
-  assignProctor,
-  removeProctor,
   deleteExam,
   updateExam,
 } from "../api/examApi";
@@ -17,7 +15,8 @@ import Skeleton from "../components/ui/Skeleton";
 import { IconLoader, IconX } from "../components/icons/Icons";
 import { useMyCourses } from "../hooks/useCatalog";
 import ExamTimeInput from "../components/ui/ExamTimeInput";
-import ProctorCombobox from "../components/ui/ProctorCombobox";
+import ExamSectionsEditor from "../components/ExamSectionsEditor";
+import { emptySection, sectionsFromExam, sectionsPayload, sectionsProblem } from "../utils/examSections";
 import { currentSchoolYear } from "../utils/schoolYear";
 import { markMissing } from "../utils/fieldAlerts";
 
@@ -98,7 +97,8 @@ const ExamSchedule = () => {
     courseSection: "",
   });
 
-  const [selectedProctor, setSelectedProctor] = useState("");
+  // Sections of the exam, each with its own room and proctor (at least one).
+  const [sections, setSections] = useState([]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -176,7 +176,7 @@ const ExamSchedule = () => {
       courseSection: "",
     });
     setSelectedExam(null);
-    setSelectedProctor("");
+    setSections([emptySection()]);
     setShowDrawer(true);
   };
 
@@ -199,8 +199,17 @@ const ExamSchedule = () => {
       courseYear: exam.courseYear || "",
       courseSection: exam.courseSection || "",
     });
-    setSelectedProctor(exam.proctorId?._id || exam.proctorId || "");
+    setSections(sectionsFromExam(exam));
     setShowDrawer(true);
+  };
+
+  // Course year and capacity are required for every exam.
+  const yearCapacityProblem = () => {
+    if (!formData.courseYear) { markMissing(["exam-course-year"])?.focus(); return "Choose the course year."; }
+    if (!(Number.isInteger(Number(formData.capacity)) && Number(formData.capacity) >= 1)) {
+      markMissing(["exam-capacity"])?.focus(); return "Enter the capacity (number of students, at least 1).";
+    }
+    return "";
   };
 
   const handleAddExam = async () => {
@@ -217,24 +226,22 @@ const ExamSchedule = () => {
     const periodProblem = examPeriodProblem({ examDate: manilaMidnight(selectedDate), examType: formData.examType, examKind: formData.examKind },
       regularDaysFor(formData.examType));
     if (periodProblem) { showToast(periodProblem, "error"); return; }
+    const requiredProblem = yearCapacityProblem();
+    if (requiredProblem) { showToast(requiredProblem, "error"); return; }
+    const sectionProblem = sectionsProblem(sections, formData);
+    if (sectionProblem) { showToast(sectionProblem, "error"); return; }
 
     setActionLoading(true);
     try {
-      const created = await createExam({
+      await createExam({
         examDate: selectedDate,
         ...formData,
-        capacity: formData.capacity ? Number(formData.capacity) : null,
+        room: "",
+        courseSection: "",
+        capacity: Number(formData.capacity),
+        sections: sectionsPayload(sections),
       });
-      if (selectedProctor && created?._id) {
-        try {
-          await assignProctor(created._id, selectedProctor);
-          showToast("Exam added and proctor assigned.", "success");
-        } catch (assignError) {
-          showToast(`Exam added, but the proctor was not assigned: ${assignError.response?.data?.message || "please try again from Edit."}`, "info");
-        }
-      } else {
-        showToast("Exam added successfully.", "success");
-      }
+      showToast(`Exam added with ${sections.length} section${sections.length === 1 ? "" : "s"}.`, "success");
       setShowDrawer(false);
       await fetchData();
     } catch (err) {
@@ -256,6 +263,10 @@ const ExamSchedule = () => {
     const scheduleProblem = examScheduleProblem({ examDate: selectedExam.examDate, examType: formData.examType, startTime: newStart },
       new Date(), { checkPast: Boolean(newStart) && newStart !== selectedExam.startTime });
     if (scheduleProblem) { showToast(scheduleProblem, "error"); return; }
+    const requiredProblem = yearCapacityProblem();
+    if (requiredProblem) { showToast(requiredProblem, "error"); return; }
+    const sectionProblem = sectionsProblem(sections, formData);
+    if (sectionProblem) { showToast(sectionProblem, "error"); return; }
     if (formData.examKind !== (selectedExam.examKind || "Regular") || formData.examType !== selectedExam.examType) {
       const periodProblem = examPeriodProblem({ examDate: selectedExam.examDate, examType: formData.examType, examKind: formData.examKind },
         regularDaysFor(formData.examType, selectedExam._id));
@@ -266,46 +277,15 @@ const ExamSchedule = () => {
     try {
       await updateExam(selectedExam._id, {
         ...formData,
-        capacity: formData.capacity ? Number(formData.capacity) : null,
+        capacity: Number(formData.capacity),
+        sections: sectionsPayload(sections),
+        courseSection: "",
       });
       showToast("Exam updated successfully.", "success");
       setShowDrawer(false);
       await fetchData();
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to update exam.", "error");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleAssignProctor = async () => {
-    if (!selectedProctor) {
-      showToast("Please select a teacher.", "error");
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await assignProctor(selectedExam._id, selectedProctor);
-      showToast("Teacher assigned successfully.", "success");
-      await fetchData();
-      handleEditExam(selectedExam);
-    } catch (err) {
-      showToast(err.response?.data?.message || "Failed to assign teacher.", "error");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleRemoveProctor = async () => {
-    setActionLoading(true);
-    try {
-      await removeProctor(selectedExam._id);
-      showToast("Teacher removed successfully.", "success");
-      await fetchData();
-      handleEditExam(selectedExam);
-    } catch (err) {
-      showToast(err.response?.data?.message || "Failed to remove teacher.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -532,10 +512,22 @@ const ExamSchedule = () => {
                       )}
                     </p>
                     <p className="text-xs text-gray-600">{exam.schedule}</p>
-                    {exam.proctorName && (
+                    {exam.sections?.length > 0 ? (
+                      <>
+                        <p className="text-xs text-blue-600 mt-1 font-semibold">
+                          {exam.sections.length} section{exam.sections.length === 1 ? "" : "s"}: {exam.sections.map((section) => section.name).join(", ")}
+                        </p>
+                        {exam.sections.some((section) => !section.proctorId) ? (
+                          <p className="text-xs text-red-600 mt-0.5">
+                            {exam.sections.filter((section) => !section.proctorId).length} section(s) without a proctor
+                          </p>
+                        ) : (
+                          <p className="text-xs text-green-700 mt-0.5">Every section has a proctor</p>
+                        )}
+                      </>
+                    ) : exam.proctorName ? (
                       <p className="text-xs text-blue-600 mt-1 font-semibold">Proctor: {exam.proctorName}</p>
-                    )}
-                    {!exam.proctorName && (
+                    ) : (
                       <p className="text-xs text-red-600 mt-1">No proctor assigned</p>
                     )}
                   </button>
@@ -648,24 +640,15 @@ const ExamSchedule = () => {
             onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))} />
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Room (Optional)
+            <label htmlFor="exam-capacity" className="block text-sm font-semibold text-gray-700 mb-2">
+              Capacity <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              value={formData.room}
-              onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-              placeholder="e.g., Room 201"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Capacity (Optional)
-            </label>
-            <input
+              id="exam-capacity"
               type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
               value={formData.capacity}
               onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
               placeholder="e.g., 50"
@@ -697,10 +680,11 @@ const ExamSchedule = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Course Year (Optional)
+            <label htmlFor="exam-course-year" className="block text-sm font-semibold text-gray-700 mb-2">
+              Course Year <span className="text-red-500">*</span>
             </label>
             <select
+              id="exam-course-year"
               value={formData.courseYear}
               onChange={(e) => setFormData({ ...formData, courseYear: e.target.value })}
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -713,58 +697,13 @@ const ExamSchedule = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Course Section (Optional)
-            </label>
-            <input
-              type="text"
-              value={formData.courseSection}
-              onChange={(e) => setFormData({ ...formData, courseSection: e.target.value })}
-              placeholder="e.g., A, B, or C"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
+          <ExamSectionsEditor sections={sections} onChange={setSections} teachers={teachers}
+            course={formData.course} courseYear={formData.courseYear} disabled={actionLoading} />
 
-          {drawerMode === "add" && (
-            <div className="border-t border-gray-200 pt-4">
-              <label htmlFor="add-proctor" className="block text-sm font-semibold text-gray-700 mb-2">
-                Proctor (Teacher) <span className="font-normal text-gray-400">· optional</span>
-              </label>
-              <ProctorCombobox id="add-proctor" teachers={teachers} value={selectedProctor} onChange={setSelectedProctor} disabled={actionLoading} />
-            </div>
-          )}
-
-          {drawerMode === "edit" && selectedExam && (
-            <div className="border-t border-gray-200 pt-4">
-              <label htmlFor="edit-proctor" className="block text-sm font-semibold text-gray-700 mb-2">
-                Assign Proctor (Teacher)
-              </label>
-              <ProctorCombobox id="edit-proctor" teachers={teachers} value={selectedProctor} onChange={setSelectedProctor} disabled={actionLoading} />
-
-              {selectedExam.proctorName ? (
-                <div className="mt-3 rounded-lg bg-green-50 p-3 text-sm">
-                  <p className="text-green-900 font-semibold">Proctor Assigned</p>
-                  <p className="text-green-700">{selectedExam.proctorName}</p>
-                  <button
-                    onClick={handleRemoveProctor}
-                    disabled={actionLoading}
-                    className="mt-2 text-xs text-red-600 hover:text-red-700 font-semibold disabled:opacity-60"
-                  >
-                    Remove Proctor
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleAssignProctor}
-                  disabled={actionLoading || !selectedProctor}
-                  className="mt-3 w-full rounded-lg bg-blue-600 text-white px-3 py-2.5 text-sm font-semibold hover:bg-blue-700 shadow-[0_4px_14px_rgba(37,99,235,0.39)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 flex items-center justify-center gap-2 transition"
-                >
-                  {actionLoading ? <IconLoader className="h-4 w-4" /> : null}
-                  Assign Proctor
-                </button>
-              )}
-            </div>
+          {drawerMode === "edit" && selectedExam && !(selectedExam.sections?.length > 0) && (selectedExam.proctorName || selectedExam.courseSection) && (
+            <p className="rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+              This exam was saved before sections{selectedExam.courseSection ? ` (section "${selectedExam.courseSection}")` : ""}{selectedExam.proctorName ? ` with ${selectedExam.proctorName} as proctor` : ""}. Add its sections above; saving replaces the old setting.
+            </p>
           )}
 
           <div className="border-t border-gray-200 pt-4 flex gap-3">

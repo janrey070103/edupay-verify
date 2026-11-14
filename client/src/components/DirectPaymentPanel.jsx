@@ -227,6 +227,7 @@ const DirectPaymentPanel = ({ onRecorded }) => {
 
   const student = overview?.student;
   const problem = accountProblem(student);
+  const paidInFull = Boolean(ledger?.fullyPaid) || (ledger?.exists && Number(ledger?.remainingBalance) <= 0);
 
   return (
     <div className="grid gap-4">
@@ -261,6 +262,11 @@ const DirectPaymentPanel = ({ onRecorded }) => {
                 {problem && (
                   <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                     <IconAlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {problem}: payments cannot be recorded for this account.
+                  </p>
+                )}
+                {!problem && paidInFull && (
+                  <p className="mt-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+                    <IconCheckCircle className="mt-0.5 h-4 w-4 shrink-0" /> Fully paid: all terms are cleared. No payment can be recorded.
                   </p>
                 )}
                 <dl className="mt-4 grid grid-cols-3 gap-2">

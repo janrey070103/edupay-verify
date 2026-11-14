@@ -13,7 +13,14 @@ const EXAM_TYPES = ["Prelim", "Midterm", "PreFinal", "Final"];
 
 const CELL = "px-6 py-4 text-sm text-gray-600";
 
+// One printed row per section (BSIT-1A, BSIT-1B...), each with its own room and proctor.
+const sectionRows = (exams) => exams.flatMap((exam) => (exam.sections?.length
+  ? exam.sections.map((section) => ({ ...exam, rowKey: exam._id + "-" + section.name, sectionName: section.name,
+    room: section.room || exam.room, proctorName: section.proctorName }))
+  : [{ ...exam, rowKey: exam._id }]));
+
 const courseLabel = (exam) => {
+  if (exam.sectionName) return exam.sectionName;
   if (exam.courseYear && exam.courseSection) return `Year ${exam.courseYear} - Section ${exam.courseSection}`;
   if (exam.courseYear) return `Year ${exam.courseYear}`;
   if (exam.courseSection) return `Section ${exam.courseSection}`;
@@ -232,8 +239,8 @@ const ExamScheduleReport = () => {
 
                 <DataTable
                   columns={COLUMNS}
-                  rows={examsList}
-                  rowKey={(exam) => exam._id}
+                  rows={sectionRows(examsList)}
+                  rowKey={(exam) => exam.rowKey}
                   className="shadow-none"
                 />
               </div>

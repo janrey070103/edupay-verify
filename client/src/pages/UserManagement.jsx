@@ -180,6 +180,9 @@ const UserManagement = () => {
     if (form.role === "student" && studentIdChanged && !STUDENT_ID_PATTERN.test(form.studentId)) {
       setDrawerError("Enter the Student ID in the format 23-1681-428."); return;
     }
+    if (form.role !== "student" && !form.studentId.trim()) {
+      setDrawerError("Enter the Employee ID."); return;
+    }
     const middleChanged = formatName(form.middleName) !== (editingUser?.middleName || "");
     const nameError = (middleChanged && middleNameProblem(form.middleName)) || extensionProblem(form.nameExtension);
     if (nameError) { setDrawerError(nameError); return; }
@@ -574,14 +577,14 @@ const UserManagement = () => {
               htmlFor="um-studentId"
               className="mb-1.5 block text-sm font-medium text-gray-700"
             >
-              {form.role === "student" ? "Student ID" : "Employee ID (optional)"}
+              {form.role === "student" ? "Student ID" : "Employee ID"} <span className="text-red-500">*</span>
             </label>
             <input
               id="um-studentId"
               type="text"
               value={form.studentId}
               onChange={(e) => updateField("studentId", form.role === "student" ? formatStudentId(e.target.value) : e.target.value)}
-              required={form.role === "student"}
+              required
               {...(form.role === "student" ? { inputMode: "numeric", maxLength: 11, placeholder: "e.g. 23-1681-428" } : {})}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
@@ -619,7 +622,7 @@ const UserManagement = () => {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="um-extension" className="mb-1 block text-xs font-semibold text-gray-600">Extension (if applicable)</label>
+                <label htmlFor="um-extension" className="mb-1 block text-xs font-semibold text-gray-600">Extension <span className="font-normal text-gray-400">-optional-</span></label>
                 <select id="um-extension" value={extensionOther ? "other" : form.nameExtension}
                   onChange={(e) => {
                     const other = e.target.value === "other";

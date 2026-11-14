@@ -40,6 +40,43 @@ const formatDate = (dateStr) => {
   });
 };
 
+// The student's account as it is now (sent with each payment row).
+const isFullyPaid = (account) => Boolean(account) && (account.fullyPaid || !(Number(account.remainingBalance) > 0));
+const ACCOUNT_TERMS = [["Prelim", "Prelim"], ["Midterm", "Midterm"], ["PreFinal", "Pre-Final"], ["Final", "Final"]];
+
+const AccountBadge = ({ account }) => {
+  if (!account) return null;
+  return isFullyPaid(account)
+    ? <span className="mt-1 inline-block rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-green-700">Fully paid</span>
+    : <span className="mt-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-600">Balance {peso(account.remainingBalance)}</span>;
+};
+
+const AccountPanel = ({ account, pending }) => {
+  if (!account) return null;
+  const paid = isFullyPaid(account);
+  return (
+    <div className={`rounded-xl border p-4 text-sm ${paid ? "border-green-200 bg-green-50" : "border-gray-100 bg-gray-50"}`}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Student account now</p>
+      <p className={`mt-1 font-black ${paid ? "text-green-800" : "text-gray-800"}`}>
+        {paid ? "Fully paid" : `Balance ${peso(account.remainingBalance)}`}
+        <span className="ml-2 font-semibold text-gray-500">Paid {peso(account.paidAmount)} of {peso(account.totalTuition)}</span>
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {ACCOUNT_TERMS.map(([key, label]) => (
+          <span key={key} className={`rounded-md px-2 py-0.5 text-xs font-bold ${account.terms?.[key] ? "bg-green-100 text-green-800" : "bg-white text-gray-500"}`}>
+            {account.terms?.[key] ? "✓ " : ""}{label}
+          </span>
+        ))}
+      </div>
+      {paid && pending && (
+        <p className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 font-semibold text-red-700">
+          This student is already fully paid, so this receipt cannot be approved. Reject it with a remark (for example, ask the student to request a refund at the cashier).
+        </p>
+      )}
+    </div>
+  );
+};
+
 const VerifyPayments = () => {
   const { showToast } = useToast();
 
@@ -182,6 +219,7 @@ const VerifyPayments = () => {
         <>
           <p className="text-sm font-bold text-gray-800 group-hover:text-sti-blue">{payment.studentId || "—"}</p>
           <p className="text-xs text-gray-500">{payment.studentName || "—"}</p>
+          <AccountBadge account={payment.account} />
         </>
       ),
     },
@@ -271,7 +309,8 @@ const VerifyPayments = () => {
           <button
             type="button"
             onClick={handleApprove}
-            disabled={actionLoading}
+            disabled={actionLoading || isFullyPaid(selected?.account)}
+            title={isFullyPaid(selected?.account) ? "This student is already fully paid" : undefined}
             aria-busy={actionLoading}
             className="flex min-h-11 items-center gap-2 rounded-lg bg-sti-gold px-4 py-2.5 text-sm font-black text-sti-blue shadow-[0_8px_20px_rgba(255,199,44,0.25)] transition hover:bg-sti-gold-hover focus:outline-none focus:ring-2 focus:ring-sti-blue/20 disabled:cursor-wait disabled:opacity-60"
           >
@@ -396,6 +435,8 @@ const VerifyPayments = () => {
                     />
                   </div>
                 )}
+
+                <AccountPanel account={selected.account} pending={["Pending", "Need Review"].includes(selected.status)} />
 
                 <dl className="space-y-3 text-sm">
                   {[

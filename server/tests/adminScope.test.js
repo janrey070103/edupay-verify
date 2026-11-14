@@ -35,6 +35,12 @@ const withCatalog = async (run) => {
 };
 
 const ictAdmin = { id: "admin-ict", role: "admin", department: "ICT" };
+// Exams now always have a year, a capacity and at least one section with a proctor.
+const SECTION_FIELDS = { courseYear: 1, capacity: 40, sections: [{ letter: "A", room: "Room 201", proctorId: "64b0000000000000000000c1" }] };
+User.find = () => ({ select: () => ({ lean: async () => [{ _id: "64b0000000000000000000c1", name: "Teacher One", email: "t1@x" }] }) });
+const realUserFindById = User.findById;
+User.findById = (id) => (id === "64b0000000000000000000c1" ? { select: () => ({ lean: async () => null }) } : realUserFindById.call(User, id));
+
 const bmaAdmin = { id: "admin-bma", role: "admin", department: "BMA" };
 
 test("only the listed roles pass allowRoles", () => {
@@ -100,7 +106,7 @@ test("exams can only be created for a course in the Admin's department", (t) => 
   Exam.findOne = async () => null;
   Exam.find = () => ({ select: () => ({ lean: async () => [] }) }); // no other exams in the term yet
   Exam.create = async (values) => { created = values; return values; };
-  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", schedule: "8-10" };
+  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", schedule: "8-10", ...SECTION_FIELDS };
   try {
     const denied = response();
     await createExam({ user: ictAdmin, body: { ...body, course: "BSA" } }, denied);
@@ -140,7 +146,7 @@ test("exam times: picked times are saved; bad or reversed times are refused", (t
   Exam.findOne = async () => null;
   Exam.find = () => ({ select: () => ({ lean: async () => [] }) }); // no other exams in the term yet
   Exam.create = async (values) => { created = values; return values; };
-  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", course: "BSIT", schedule: "9:00 AM – 11:00 AM" };
+  const body = { examDate: "2026-11-20", examType: "PreFinal", subject: "Networks", subjectCode: "IT101", course: "BSIT", schedule: "9:00 AM – 11:00 AM", ...SECTION_FIELDS };
   try {
     const ok = response();
     await createExam({ user: ictAdmin, body: { ...body, startTime: "09:00", endTime: "11:00" } }, ok);

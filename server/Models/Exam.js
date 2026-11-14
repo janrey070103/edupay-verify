@@ -89,6 +89,20 @@ const examSchema = new mongoose.Schema(
       required: false,
     },
 
+    // Optional: the same exam given to several sections at once, each with its
+    // own proctor and room (e.g. BSIT-1A, BSIT-1B). Empty = one proctor for the
+    // whole exam (proctorId above).
+    sections: {
+      type: [{
+        name: { type: String, required: true, trim: true },
+        room: { type: String, trim: true },
+        proctorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        proctorName: String,
+        proctorEmail: String,
+      }],
+      default: [],
+    },
+
     status: {
       type: String,
       enum: ["Scheduled", "In Progress", "Completed", "Cancelled"],
@@ -109,6 +123,7 @@ const examSchema = new mongoose.Schema(
 // Index for efficient querying by date and type
 examSchema.index({ examDate: 1, examType: 1 });
 examSchema.index({ proctorId: 1 });
+examSchema.index({ "sections.proctorId": 1 });
 examSchema.index({ subjectCode: 1 });
 examSchema.index({ courseYear: 1, courseSection: 1 });
 examSchema.index({ course: 1, examDate: 1 });

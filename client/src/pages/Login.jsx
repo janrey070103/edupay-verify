@@ -582,7 +582,7 @@ const Login = () => {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="signup-extension" className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Extension <span className="font-normal text-gray-400">(if applicable)</span>
+                      Extension <span className="font-normal text-gray-400">-optional-</span>
                     </label>
                     <select
                       id="signup-extension"

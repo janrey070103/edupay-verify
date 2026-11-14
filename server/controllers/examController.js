@@ -3,6 +3,8 @@ const User = require("../Models/User");
 const Notification = require("../Models/Notification");
 const { courseScope, inScope, ownsCourse } = require("../utils/adminScope");
 const { examScheduleProblem, examPeriodProblem, manilaMonthRange } = require("../config/examWindows");
+const { sectionName, readSections, resolveSectionProctors, examProctorIds, notifySectionChanges, notifyTeacher,
+  forTeacher, proctoredBy } = require("../services/examSections");
 
 const EXAM_KINDS = ["Regular", "Special"];
 const manilaDayKey = (value) => new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
@@ -37,12 +39,17 @@ const readTimes = (startTime, endTime) => {
 const TIME_ERROR = "Pick a valid start and end time (the end must be after the start).";
 
 const OUT_OF_SCOPE = "This exam belongs to another department.";
+// Every exam names its year level (1-4) and room capacity.
+const validYear = (value) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 4;
+const validCapacity = (value) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 1000;
+const YEAR_REQUIRED = "Choose the course year (1st to 4th Year).";
+const CAPACITY_REQUIRED = "Enter the capacity (number of students, at least 1).";
 const COURSE_REQUIRED = "Choose a course from your department.";
 
 // Create exam
 const createExam = async (req, res) => {
   try {
-    const { examDate, examType, subject, subjectCode, schedule, room, capacity, courseYear, courseSection, course } = req.body;
+    const { examDate, examType, subject, subjectCode, schedule, capacity, courseYear, course } = req.body;
     const examKind = req.body.examKind || "Regular";
     if (!EXAM_KINDS.includes(examKind)) return res.status(400).json({ message: "Choose Regular or Special exam." });
     const times = readTimes(req.body.startTime, req.body.endTime);
@@ -78,6 +85,16 @@ const createExam = async (req, res) => {
       });
     }
 
+    if (!validYear(courseYear)) return res.status(400).json({ message: YEAR_REQUIRED });
+    if (!validCapacity(capacity)) return res.status(400).json({ message: CAPACITY_REQUIRED });
+    // Every exam has its sections, each with its own room and proctor (e.g. BSIT-1A).
+    const sectionInput = readSections(req.body.sections ?? [], { course, courseYear });
+    if (sectionInput.error) return res.status(400).json({ message: sectionInput.error });
+    const resolved = await resolveSectionProctors(sectionInput.sections,
+      { examDate: new Date(examDate), startTime: times.startTime, endTime: times.endTime });
+    if (resolved.error) return res.status(409).json({ message: resolved.error });
+    const sections = resolved.sections;
+
     const exam = await Exam.create({
       examDate: new Date(examDate),
       examType,
@@ -88,12 +105,12 @@ const createExam = async (req, res) => {
       schedule,
       startTime: times.startTime,
       endTime: times.endTime,
-      room: room || null,
-      capacity: capacity || null,
-      courseYear: courseYear ? Number(courseYear) : undefined,
-      courseSection: courseSection || undefined,
+      capacity: Number(capacity),
+      courseYear: Number(courseYear),
+      sections,
       createdBy: req.user.id,
     });
+    await notifySectionChanges(exam, []);
 
     res.status(201).json(exam);
   } catch (error) {
@@ -148,13 +165,12 @@ const getExamsForTeacher = async (req, res) => {
   try {
     const teacherId = req.user.id;
 
-    const exams = await Exam.find({
-      proctorId: teacherId,
-    })
+    const exams = await Exam.find(proctoredBy(teacherId))
       .populate("createdBy", "name email")
-      .sort({ examDate: 1 });
+      .sort({ examDate: 1 }).lean();
 
-    res.json(exams);
+    // A section proctor sees their own section's room and name.
+    res.json(exams.map((exam) => forTeacher(exam, teacherId)));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -218,6 +234,21 @@ const updateExam = async (req, res) => {
       }
     }
 
+    const nextCourse = course !== undefined ? course : exam.course;
+    const nextYear = courseYear !== undefined ? courseYear : exam.courseYear;
+    if (courseYear !== undefined && !validYear(courseYear)) return res.status(400).json({ message: YEAR_REQUIRED });
+    if (capacity !== undefined && !validCapacity(capacity)) return res.status(400).json({ message: CAPACITY_REQUIRED });
+    // Sections: validated against the exam's final course, year, date and time.
+    const sectionInput = readSections(req.body.sections, { course: nextCourse, courseYear: nextYear });
+    if (sectionInput.error) return res.status(400).json({ message: sectionInput.error });
+    let nextSections;
+    if (sectionInput.sections !== undefined) {
+      const resolved = await resolveSectionProctors(sectionInput.sections, { _id: exam._id,
+        examDate: nextDate, startTime: timesGiven ? times.startTime : exam.startTime, endTime: timesGiven ? times.endTime : exam.endTime });
+      if (resolved.error) return res.status(409).json({ message: resolved.error });
+      nextSections = resolved.sections;
+    }
+
     if (course !== undefined && course !== exam.course) {
       if (!await ownsCourse(req, course)) return res.status(400).json({ message: COURSE_REQUIRED });
       exam.course = course;
@@ -230,27 +261,40 @@ const updateExam = async (req, res) => {
     if (schedule) exam.schedule = schedule;
     // Switching to a typed schedule clears picked times so the two never disagree.
     if (timesGiven) { exam.startTime = times.startTime; exam.endTime = times.endTime; }
-    if (room !== undefined) exam.room = room;
-    if (capacity !== undefined) exam.capacity = capacity;
-    if (courseYear !== undefined) exam.courseYear = courseYear ? Number(courseYear) : undefined;
+    if (room !== undefined) exam.room = room || undefined;
+    if (capacity !== undefined) exam.capacity = Number(capacity);
+    if (courseYear !== undefined) exam.courseYear = Number(courseYear);
+    // Section names follow the course and year (BSIT-1A) even when only those changed.
+    if (nextSections === undefined && exam.sections?.length) {
+      exam.sections.forEach((section) => { section.name = sectionName(exam.course, exam.courseYear, String(section.name).slice(-1)); });
+    }
     if (courseSection !== undefined) exam.courseSection = courseSection || undefined;
     if (status) exam.status = status;
 
+    const sectionsBefore = (exam.sections || []).map((section) => ({ name: section.name, proctorId: section.proctorId }));
+    const proctorsBefore = examProctorIds(exam);
+    let removedWholeProctor = null;
+    if (nextSections !== undefined) {
+      exam.sections = nextSections;
+      if (nextSections.length) {
+        // With sections, each section has its own proctor; the whole-exam proctor is replaced.
+        if (exam.proctorId && !nextSections.some((s) => String(s.proctorId) === String(exam.proctorId))) removedWholeProctor = exam.proctorId;
+        exam.proctorId = null; exam.proctorName = null; exam.proctorEmail = null; exam.courseSection = undefined;
+      }
+    }
+
     await exam.save();
 
-    // Notify the assigned proctor if exam details changed
-    if (exam.proctorId) {
-      const teacher = await User.findById(exam.proctorId);
-      if (teacher) {
-        await Notification.create({
-          studentId: teacher.studentId,
-          recipientUserId: teacher._id,
-          studentName: teacher.name,
-          recipientRole: "teacher",
-          title: "Exam Schedule Updated",
-          message: `The schedule for ${exam.subject} (${exam.subjectCode}) has been updated. Please check your assigned exams for the latest details.`,
-        });
-      }
+    if (nextSections !== undefined) await notifySectionChanges(exam, sectionsBefore);
+    if (removedWholeProctor) {
+      await notifyTeacher(removedWholeProctor, "Exam Assignment Removed",
+        `${exam.subject} (${exam.subjectCode}) is now proctored by section. Your assignment for the whole exam has been removed.`);
+    }
+    // Everyone who stays assigned is told the details changed.
+    const stillAssigned = examProctorIds(exam).filter((id) => proctorsBefore.includes(id));
+    for (const id of stillAssigned) {
+      await notifyTeacher(id, "Exam Schedule Updated",
+        `The schedule for ${exam.subject} (${exam.subjectCode}) has been updated. Please check your assigned exams for the latest details.`);
     }
 
     res.json(exam);
@@ -275,6 +319,9 @@ const assignProctor = async (req, res) => {
       return res.status(404).json({ message: "Exam not found." });
     }
     if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
+    if (exam.sections?.length) {
+      return res.status(409).json({ message: "This exam is proctored by section. Assign the proctor on each section instead." });
+    }
 
     const teacher = await User.findById(proctorId);
 
@@ -359,19 +406,10 @@ const deleteExam = async (req, res) => {
     }
     if (!await inScope(req, exam.course, EXAM_SCOPE)) return res.status(403).json({ message: OUT_OF_SCOPE });
 
-    // Notify the assigned proctor before deleting
-    if (exam.proctorId) {
-      const teacher = await User.findById(exam.proctorId);
-      if (teacher) {
-        await Notification.create({
-          studentId: teacher.studentId,
-          recipientUserId: teacher._id,
-          studentName: teacher.name,
-          recipientRole: "teacher",
-          title: "Exam Cancelled",
-          message: `The exam for ${exam.subject} (${exam.subjectCode}) on ${exam.examDate.toLocaleDateString()} at ${exam.schedule} has been cancelled. Your proctoring duty has been removed.`,
-        });
-      }
+    // Notify every assigned proctor (whole exam and sections) before deleting
+    for (const id of examProctorIds(exam)) {
+      await notifyTeacher(id, "Exam Cancelled",
+        `The exam for ${exam.subject} (${exam.subjectCode}) on ${exam.examDate.toLocaleDateString()} at ${exam.schedule} has been cancelled. Your proctoring duty has been removed.`);
     }
 
     await Exam.findByIdAndDelete(id);

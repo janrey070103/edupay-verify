@@ -27,6 +27,27 @@ const sendError = (res, error) => {
   return res.status(500).json({ message: error.message });
 };
 
+/** Throws a 409 when the student's tuition is already fully paid. */
+const refuseIfFullyPaid = async (studentId, session, message) => {
+  const ledger = await Ledger.findOne({ studentId }).session(session);
+  if (ledger && (ledger.fullyPaid || !(Number(ledger.remainingBalance) > 0))) {
+    const conflict = new Error(message); conflict.status = 409; throw conflict;
+  }
+};
+
+/** Each payment row gets the student's current account: paid, balance, cleared terms. */
+const withAccounts = async (rows) => {
+  const ids = [...new Set(rows.map((row) => row.studentId).filter(Boolean))];
+  if (!ids.length) return rows;
+  const ledgers = new Map((await Ledger.find({ studentId: { $in: ids } }).lean()).map((ledger) => [ledger.studentId, ledger]));
+  return rows.map((row) => {
+    const ledger = ledgers.get(row.studentId) || new Ledger({ studentId: row.studentId }).toObject();
+    return { ...row, account: { totalTuition: ledger.totalTuition, paidAmount: ledger.paidAmount,
+      remainingBalance: ledger.remainingBalance, fullyPaid: Boolean(ledger.fullyPaid),
+      terms: { Prelim: Boolean(ledger.prelim), Midterm: Boolean(ledger.midterm), PreFinal: Boolean(ledger.preFinal), Final: Boolean(ledger.final) } } };
+  });
+};
+
 const updateLedgerAndPermits = async (payment, session) => {
   let ledger = await Ledger.findOne({ studentId: payment.studentId }).session(session);
   if (!ledger) {
@@ -70,14 +91,18 @@ const createPayment = async (req, res) => {
     } else if (!TERMS.includes(examCoverage) || req.body.paymentDescription !== `Tuition - ${examCoverage}`) {
       return res.status(400).json({ message: "Select a valid tuition payment description." });
     }
-    // Full tuition: only while a balance remains, and one waiting at a time.
-    let remainingBalance = null;
+    // Nothing can be paid once the tuition is fully paid, and a cleared term
+    // cannot be paid again.
+    const currentLedger = await Ledger.findOne({ studentId: account.studentId }).lean();
+    const remainingBalance = currentLedger ? Number(currentLedger.remainingBalance) : Number(new Ledger().remainingBalance);
+    if (currentLedger?.fullyPaid || !(remainingBalance > 0)) {
+      return res.status(409).json({ message: "Your tuition is already fully paid. No more payments are needed." });
+    }
+    if (!isFullTuition && currentLedger?.[COVERAGE_FIELD[examCoverage]]) {
+      return res.status(409).json({ message: `You are already cleared for ${examCoverage}. Choose a term you have not paid yet.` });
+    }
+    // Full tuition: one waiting at a time.
     if (isFullTuition) {
-      const ledger = await Ledger.findOne({ studentId: account.studentId }).lean();
-      remainingBalance = ledger ? Number(ledger.remainingBalance) : Number(new Ledger().remainingBalance);
-      if (ledger?.fullyPaid || !(remainingBalance > 0)) {
-        return res.status(409).json({ message: "Your tuition is already fully paid." });
-      }
       if (await Payment.exists({ studentId: account.studentId, paymentType: "Full Tuition", status: { $in: ["Pending", "Need Review"] } })) {
         return res.status(409).json({ message: "You already have a full tuition payment waiting for cashier review." });
       }
@@ -189,7 +214,10 @@ const getPayments = async (req, res) => {
     if (range) query.createdAt = range;
     const paging = readPaging(req.query, { limit: 20 });
     const sort = readSort(req.query, ["createdAt", "amount", "studentName", "status"]);
-    return res.json(await paginate(Payment, query, paging, sort));
+    const result = await paginate(Payment, query, paging, sort);
+    // Cashiers see whether each student is already fully paid.
+    if (req.user.role !== "student") result.data = await withAccounts(result.data);
+    return res.json(result);
   } catch (error) { return sendError(res, error); }
 };
 
@@ -261,6 +289,7 @@ const approvePayment = async (req, res) => {
       if (!student || student.isActive === false || student.verificationStatus !== "verified") {
         const conflict = new Error("Student account is not active and verified."); conflict.status = 409; throw conflict;
       }
+      await refuseIfFullyPaid(payment.studentId, session, "This student is already fully paid. Reject this receipt instead.");
       await updateLedgerAndPermits(payment, session);
       await Notification.create([{ studentId: payment.studentId, studentName: payment.studentName,
         recipientRole: "student", title: "Payment Approved",
@@ -312,6 +341,7 @@ const createDirectPayment = async (req, res) => {
       if (!student || ["pending", "rejected"].includes(student.verificationStatus)) {
         const missing = new Error("Verified student not found."); missing.status = 404; throw missing;
       }
+      await refuseIfFullyPaid(studentId, session, "This student is already fully paid. No payment can be recorded.");
       [payment] = await Payment.create([{ studentId, studentName: student.name, amount: Number(amount),
         amountStatus: "Confirmed by Cashier", paymentDescription: paymentDescription || "Direct Payment",
         examCoverage: examCoverage || undefined, status: "Approved", paymentMethod: "direct",
@@ -347,7 +377,7 @@ const getStudentPaymentOverview = async (req, res) => {
     const view = ledger || empty;
     return res.json({
       student,
-      canPay: student.isActive !== false && student.verificationStatus === "verified",
+      canPay: student.isActive !== false && student.verificationStatus === "verified" && !(view.fullyPaid || !(Number(view.remainingBalance) > 0)),
       ledger: { totalTuition: view.totalTuition, paidAmount: view.paidAmount, remainingBalance: view.remainingBalance,
         fullyPaid: view.fullyPaid, terms: { Prelim: view.prelim, Midterm: view.midterm, PreFinal: view.preFinal, Final: view.final },
         exists: Boolean(ledger) },
