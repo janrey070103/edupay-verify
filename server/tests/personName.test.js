@@ -9,7 +9,7 @@ test("names are capitalised word by word", () => {
 });
 
 test("middle name must be full, never an initial; blank is allowed", () => {
-  const base = { firstName: "Juan", lastName: "Varca" };
+  const base = { firstName: "Juan", lastName: "Santos" };
   assert.equal(nameProblem(readNameParts({ ...base })), "");
   assert.equal(nameProblem(readNameParts({ ...base, middleName: "Santos" })), "");
   assert.match(nameProblem(readNameParts({ ...base, middleName: "S." })), /not an initial/);
@@ -30,11 +30,11 @@ test("extensions follow the Jr. / III format", () => {
 });
 
 test("student ID format and institutional email", () => {
-  assert.equal(validStudentId("23-1681-428"), true);
-  assert.equal(validStudentId("231681428"), false);
+  assert.equal(validStudentId("12-3456-789"), true);
+  assert.equal(validStudentId("123456789"), false);
   assert.equal(validStudentId("2024-00123"), false);
-  assert.equal(studentEmail({ lastName: "Varca", nameExtension: "Jr.", studentId: "23-1681-428" }), "varcajr.681428@wnu.sti.edu.ph");
-  assert.equal(studentEmail({ lastName: "Dela Cruz", studentId: "23-1681-428" }), "delacruz.681428@wnu.sti.edu.ph");
+  assert.equal(studentEmail({ lastName: "Santos", nameExtension: "Jr.", studentId: "12-3456-789" }), "santosjr.456789@wnu.sti.edu.ph");
+  assert.equal(studentEmail({ lastName: "Dela Cruz", studentId: "12-3456-789" }), "delacruz.456789@wnu.sti.edu.ph");
   assert.equal(studentEmail({ lastName: "Peña", nameExtension: "III", studentId: "22-0989-552" }), "penaiii.989552@wnu.sti.edu.ph");
-  assert.equal(studentEmail({ lastName: "Varca", studentId: "23-1681" }), "");
+  assert.equal(studentEmail({ lastName: "Santos", studentId: "12-3456" }), "");
 });

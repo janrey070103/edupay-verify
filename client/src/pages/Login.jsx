@@ -177,7 +177,7 @@ const Login = () => {
     }
 
     if (!STUDENT_ID_PATTERN.test(studentId)) {
-      setError("Enter your Student ID in the format 23-1681-428.");
+      setError("Enter your Student ID in the format 12-3456-789.");
       markMissing(["signup-student-id"]);
       focusField(e.currentTarget, "signup-student-id");
       return;
@@ -504,7 +504,7 @@ const Login = () => {
                       type="text"
                       inputMode="numeric"
                       maxLength={11}
-                      placeholder="e.g. 23-1681-428"
+                      placeholder="e.g. 12-3456-789"
                       value={studentId}
                       onChange={(e) => setStudentId(formatStudentId(e.target.value))}
                       disabled={loading}
@@ -568,13 +568,11 @@ const Login = () => {
                       onChange={(e) => setMiddleName(formatNameInput(e.target.value))}
                       onBlur={() => { setMiddleName(formatName(middleName)); setMiddleTouched(true); }}
                       aria-invalid={middleError ? "true" : undefined}
-                      aria-describedby="signup-middleName-help"
+                      aria-describedby={middleError ? "signup-middleName-help" : undefined}
                       disabled={loading}
                       className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60"
                     />
-                    <p id="signup-middleName-help" className={`mt-1 text-xs ${middleError ? "text-red-600" : "text-gray-400"}`}>
-                      {middleError || "Full name only, no initials."}
-                    </p>
+                    {middleError && <p id="signup-middleName-help" className="mt-1 text-xs text-red-600">{middleError}</p>}
                   </div>
                 </div>
 
@@ -632,17 +630,13 @@ const Login = () => {
                       id="signup-email"
                       type="email"
                       autoComplete="email"
-                      placeholder="lastname.681428@wnu.sti.edu.ph"
+                      placeholder="lastname.456789@wnu.sti.edu.ph"
                       value={signupEmail}
                       readOnly
                       aria-readonly="true"
-                      aria-describedby="signup-email-help"
                       className="block w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm font-medium text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-sti-gold focus:ring-2 focus:ring-sti-gold/20 disabled:opacity-60 cursor-not-allowed bg-gray-50"
                     />
                   </div>
-                  <p id="signup-email-help" className="mt-1 text-xs text-gray-400">
-                    Last name + extension + Student ID without its first 3 digits. Use it to sign in.
-                  </p>
                 </div>
 
                 {/* Password + Confirm side by side */}

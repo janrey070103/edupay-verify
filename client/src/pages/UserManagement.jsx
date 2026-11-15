@@ -178,7 +178,7 @@ const UserManagement = () => {
     }
     const studentIdChanged = drawerMode === "create" || form.studentId !== (editingUser?.studentId || "");
     if (form.role === "student" && studentIdChanged && !STUDENT_ID_PATTERN.test(form.studentId)) {
-      setDrawerError("Enter the Student ID in the format 23-1681-428."); return;
+      setDrawerError("Enter the Student ID in the format 12-3456-789."); return;
     }
     if (form.role !== "student" && !form.studentId.trim()) {
       setDrawerError("Enter the Employee ID."); return;
@@ -585,7 +585,7 @@ const UserManagement = () => {
               value={form.studentId}
               onChange={(e) => updateField("studentId", form.role === "student" ? formatStudentId(e.target.value) : e.target.value)}
               required
-              {...(form.role === "student" ? { inputMode: "numeric", maxLength: 11, placeholder: "e.g. 23-1681-428" } : {})}
+              {...(form.role === "student" ? { inputMode: "numeric", maxLength: 11, placeholder: "e.g. 12-3456-789" } : {})}
               className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
@@ -617,7 +617,6 @@ const UserManagement = () => {
                   onChange={(e) => updateField("middleName", formatNameInput(e.target.value))}
                   onBlur={() => updateField("middleName", formatName(form.middleName))}
                   placeholder="Full middle name (optional)" className={INPUT} />
-                <p className="mt-1 text-xs text-gray-400">Full name only, no initials.</p>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -663,9 +662,6 @@ const UserManagement = () => {
               required
               className={`w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${autoEmail ? "cursor-not-allowed bg-gray-50" : ""}`}
             />
-            {autoEmail && (
-              <p className="mt-1 text-xs text-gray-400">Last name + extension + Student ID without its first 3 digits @wnu.sti.edu.ph.</p>
-            )}
           </div>
 
           <div>

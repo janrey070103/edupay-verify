@@ -1,18 +1,18 @@
 // Student identity rules shared by Sign-up and User Management.
 // The server applies the same rules (server/utils/personName.js).
 //
-// - Student ID: 2-4-3 digits, e.g. 23-1681-428 (dashes are added automatically).
+// - Student ID: 2-4-3 digits, e.g. 12-3456-789 (dashes are added automatically).
 // - Names: every word starts with a capital, the rest is lowercase ("Dela Cruz").
 // - Middle name: optional, but must be the full name, never an initial ("A.").
 // - Extension: Jr., Sr., III, IV, V, VI, or another suffix in the same format.
 // - Student email: lastname + extension + "." + ID without its first 3 digits
-//   + "@wnu.sti.edu.ph", e.g. Varca Jr. / 23-1681-428 -> varcajr.681428@wnu.sti.edu.ph
+//   + "@wnu.sti.edu.ph", e.g. Santos Jr. / 12-3456-789 -> santosjr.456789@wnu.sti.edu.ph
 
 export const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{3}$/;
 export const STUDENT_EMAIL_DOMAIN = "wnu.sti.edu.ph";
 export const NAME_EXTENSIONS = ["Jr.", "Sr.", "III", "IV", "V", "VI"];
 
-/** Keeps digits only and inserts the dashes: "231681428" -> "23-1681-428". */
+/** Keeps digits only and inserts the dashes: "123456789" -> "12-3456-789". */
 export const formatStudentId = (value) => {
   const digits = String(value ?? "").replace(/\D/g, "").slice(0, 9);
   return [digits.slice(0, 2), digits.slice(2, 6), digits.slice(6)].filter(Boolean).join("-");

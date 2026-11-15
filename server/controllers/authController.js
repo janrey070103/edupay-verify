@@ -24,7 +24,7 @@ const register = async (req, res) => {
     const nameError = nameProblem(nameParts);
     if (nameError) return res.status(400).json({ message: nameError });
     if (!validStudentId(studentId)) {
-      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
+      return res.status(400).json({ message: "Enter the Student ID in the format 12-3456-789." });
     }
     // The institutional email is built from the last name, extension and ID.
     const email = studentEmail({ ...nameParts, studentId });

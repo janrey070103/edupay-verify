@@ -5,9 +5,9 @@
 // - every word of a name starts with a capital, the rest is lowercase ("Dela Cruz");
 // - the middle name is optional but must be the full name, never an initial;
 // - the extension is Jr., Sr., III, IV, V, VI or another suffix in that format;
-// - a student ID is 2-4-3 digits (23-1681-428);
+// - a student ID is 2-4-3 digits (12-3456-789);
 // - a student's email is lastname + extension + "." + ID without its first
-//   3 digits + "@wnu.sti.edu.ph" (varcajr.681428@wnu.sti.edu.ph).
+//   3 digits + "@wnu.sti.edu.ph" (santosjr.456789@wnu.sti.edu.ph).
 
 const NAME_FIELDS = ["firstName", "middleName", "lastName", "nameExtension"];
 const STUDENT_ID_PATTERN = /^\d{2}-\d{4}-\d{3}$/;

@@ -238,7 +238,7 @@ const createUser = async (req, res) => {
     if (nameError) return res.status(400).json({ message: nameError });
     if (role !== "student" && !studentId) return res.status(400).json({ message: "Employee ID is required." });
     if (role === "student" && !validStudentId(studentId)) {
-      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
+      return res.status(400).json({ message: "Enter the Student ID in the format 12-3456-789." });
     }
     // Student emails follow the institutional format; staff emails are typed in.
     const email = role === "student" ? studentEmail({ ...nameParts, studentId }) : String(req.body.email ?? "").trim().toLowerCase();
@@ -351,7 +351,7 @@ const updateUser = async (req, res) => {
     }
     const nextRole = role !== undefined && ALLOWED_ROLES.includes(role) ? role : user.role;
     if (nextRole === "student" && studentId !== undefined && studentId !== user.studentId && !validStudentId(studentId)) {
-      return res.status(400).json({ message: "Enter the Student ID in the format 23-1681-428." });
+      return res.status(400).json({ message: "Enter the Student ID in the format 12-3456-789." });
     }
     if (studentId && studentId !== user.studentId && await User.exists({ studentId, _id: { $ne: id } })) {
       return res.status(409).json({ message: "ID already exists." });

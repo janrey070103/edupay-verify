@@ -7,10 +7,10 @@ import {
 test("student ID gets its dashes while typing", () => {
   assert.equal(formatStudentId("23"), "23");
   assert.equal(formatStudentId("231"), "23-1");
-  assert.equal(formatStudentId("231681"), "23-1681");
-  assert.equal(formatStudentId("2316814"), "23-1681-4");
-  assert.equal(formatStudentId("23-1681-428999"), "23-1681-428");
-  assert.equal(formatStudentId("ab23 16x81428"), "23-1681-428");
+  assert.equal(formatStudentId("123456"), "12-3456");
+  assert.equal(formatStudentId("1234567"), "12-3456-7");
+  assert.equal(formatStudentId("12-3456-789999"), "12-3456-789");
+  assert.equal(formatStudentId("ab12 34x56789"), "12-3456-789");
 });
 
 test("names: every word capitalised, digits and symbols removed", () => {
@@ -41,7 +41,7 @@ test("extensions", () => {
 });
 
 test("institutional email", () => {
-  assert.equal(studentEmail({ lastName: "Varca", nameExtension: "Jr.", studentId: "23-1681-428" }), "varcajr.681428@wnu.sti.edu.ph");
-  assert.equal(studentEmail({ lastName: "Dela Cruz", nameExtension: "", studentId: "23-1681-428" }), "delacruz.681428@wnu.sti.edu.ph");
-  assert.equal(studentEmail({ lastName: "Varca", studentId: "23-1681-4" }), "", "empty until the ID is complete");
+  assert.equal(studentEmail({ lastName: "Santos", nameExtension: "Jr.", studentId: "12-3456-789" }), "santosjr.456789@wnu.sti.edu.ph");
+  assert.equal(studentEmail({ lastName: "Dela Cruz", nameExtension: "", studentId: "12-3456-789" }), "delacruz.456789@wnu.sti.edu.ph");
+  assert.equal(studentEmail({ lastName: "Santos", studentId: "12-3456-7" }), "", "empty until the ID is complete");
 });
